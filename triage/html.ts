@@ -31,6 +31,8 @@ export function renderHtml(
     runUrl?: string;
     /** Links para as outras suites publicadas no Pages. */
     nav: { label: string; href: string }[];
+    /** O Allure é um só para as duas suites, publicado em /allure/. */
+    allureHref: string;
   },
 ): string {
   const rows = items
@@ -104,7 +106,7 @@ ${result.model ? `<small>modelo: ${esc(result.model)}</small>` : ""}
     .join(" · ")}</nav>
 <h1>🧪 Triagem de falhas Playwright (Jev) · ${esc(opts.suite)}</h1>
 <p>
-  <a href="allure/index.html">Relatório Allure →</a>
+  <a href="${esc(opts.allureHref)}">Relatório Allure (todas as suites) →</a>
   · <a href="playwright-report/index.html">Relatório HTML do Playwright →</a>
   ${opts.runUrl ? ` · <a href="${esc(opts.runUrl)}">Execução no GitHub Actions</a>` : ""}
   · <small>gerado em ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC</small>

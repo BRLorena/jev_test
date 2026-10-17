@@ -10,9 +10,8 @@
     "triage:saucedemo": "SUITE=saucedemo npm run triage",
     "test:triage": "npm test; npm run triage",
     "test:triage:saucedemo": "npm run test:saucedemo; npm run triage:saucedemo",
-    "allure": "allure generate reports/${SUITE:-local}/allure-results",
-    "allure:saucedemo": "SUITE=saucedemo npm run allure",
-    "allure:open": "allure open reports/${SUITE:-local}/allure-report",
+    "allure": "allure generate reports/*/allure-results",
+    "allure:open": "allure open reports/allure-report",
     "typecheck": "tsc",
     "start": "tsx app/server.ts"
   },

@@ -61,7 +61,7 @@ jobs:
         continue-on-error: true
         run: npm run ${{ matrix.test_script }}
 
-      # Históricos das execuções anteriores, publicados no GitHub Pages pelo deploy anterior.
+      # Histórico da triagem (execuções anteriores), publicado no GitHub Pages pelo deploy anterior.
       # Na primeira execução (ou sem Pages) não existem, e tudo corre sem histórico.
       - name: Download history from GitHub Pages
         if: always()
@@ -71,7 +71,6 @@ jobs:
           mkdir -p ".history/$SUITE"
           base="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/${SITE_PATH:+$SITE_PATH/}"
           curl -fsSL "${base}history.json" -o ".history/$SUITE/triage.json" && echo "Histórico da triagem descarregado" || echo "Sem histórico da triagem"
-          curl -fsSL "${base}allure-history.jsonl" -o ".history/$SUITE/allure.jsonl" && echo "Histórico do Allure descarregado" || echo "Sem histórico do Allure"
 
       # ★ Aqui entra o Jev. Sem o secret, corre em fallback (unclassified) e não falha.
       - name: Triage failures with Jev
@@ -80,11 +79,6 @@ jobs:
           TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
         run: npm run triage
 
-      # Depois da triagem: os resultados Allure já trazem labels, descrição e anexo do Jev.
-      - name: Generate Allure 3 report
-        if: always()
-        run: npm run allure
-
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -92,10 +86,18 @@ jobs:
           name: reports-${{ matrix.suite }}
           path: |
             reports/${{ matrix.suite }}/playwright-report/
-            reports/${{ matrix.suite }}/allure-report/
             reports/${{ matrix.suite }}/triage/
             reports/${{ matrix.suite }}/results.json
           retention-days: 14
+
+      # Resultados Allure já enriquecidos pelo Jev: o job "allure" junta as duas suites num relatório.
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: allure-results-${{ matrix.suite }}
+          path: reports/${{ matrix.suite }}/allure-results/
+          retention-days: 1
 
       # Parte desta suite no site do GitHub Pages (só em push para master; PRs não publicam).
       - name: Build Pages site
@@ -108,8 +110,6 @@ jobs:
           cp "reports/$SUITE/triage/index.html" "$out/index.html"
           cp "reports/$SUITE/triage/history.json" "$out/history.json"
           cp -r "reports/$SUITE/playwright-report" "$out/playwright-report"
-          cp -r "reports/$SUITE/allure-report" "$out/allure"
-          cp ".history/$SUITE/allure.jsonl" "$out/allure-history.jsonl" || true
 
       - name: Upload site part
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -119,10 +119,73 @@ jobs:
           path: site/
           retention-days: 1
 
+  # Um único relatório Allure 3 com as duas suites (cada uma é um "environment" do Allure).
+  allure:
+    needs: e2e
+    if: always() && needs.e2e.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Cada artifact fica em reports/<suite>/allure-results, onde o `npm run allure` os procura.
+      - name: Download Allure results
+        uses: actions/download-artifact@v8
+        with:
+          pattern: allure-results-*
+          path: downloaded
+
+      - name: Arrange results per suite
+        run: |
+          for dir in downloaded/allure-results-*; do
+            suite="${dir#downloaded/allure-results-}"
+            mkdir -p "reports/$suite"
+            mv "$dir" "reports/$suite/allure-results"
+          done
+          ls reports
+
+      - name: Download Allure history from GitHub Pages
+        run: |
+          mkdir -p .history
+          url="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/allure-history.jsonl"
+          curl -fsSL "$url" -o .history/allure.jsonl && echo "Histórico do Allure descarregado" || echo "Sem histórico do Allure"
+
+      - name: Generate Allure 3 report
+        run: npm run allure
+
+      - name: Upload Allure report
+        uses: actions/upload-artifact@v7
+        with:
+          name: allure-report
+          path: reports/allure-report/
+          retention-days: 14
+
+      - name: Build Pages site
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          mkdir -p site
+          cp -r reports/allure-report site/allure
+          cp .history/allure.jsonl site/allure-history.jsonl || true
+
+      - name: Upload site part
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-allure
+          path: site/
+          retention-days: 1
+
   # Junta as partes das duas suites e publica. Corre mesmo quando o e2e falha por causa de
   # um bug: é precisamente aí que interessa ver os relatórios.
   deploy-pages:
-    needs: e2e
+    needs: [e2e, allure]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.e2e.result != 'cancelled'
     runs-on: ubuntu-latest
     permissions:

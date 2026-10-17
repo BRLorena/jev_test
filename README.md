@@ -8,7 +8,10 @@ Projeto pequeno, feito para aprender, que junta suites **Playwright + TypeScript
 
 O pipeline só falha quando existe um **bug** real na app.
 
-Relatórios publicados: **https://brlorena.github.io/jev_test/** (suite local) e **https://brlorena.github.io/jev_test/saucedemo/**
+Relatórios publicados:
+- **Allure com as duas suites:** https://brlorena.github.io/jev_test/allure/
+- **Triagem da suite local:** https://brlorena.github.io/jev_test/
+- **Triagem do saucedemo:** https://brlorena.github.io/jev_test/saucedemo/
 
 ## As duas suites
 
@@ -106,6 +109,12 @@ O `performance_glitch_user` funciona, mas é lento. Com só três categorias, o 
 
 ## Allure 3
 
+Há **um único relatório Allure para as duas suites**. Cada suite é um [environment](https://allurereport.org/docs/environments/) do Allure 3, que se escolhe no seletor no topo do relatório, ou em "All" para ver tudo junto.
+
+- A configuração partilhada do Playwright marca cada resultado com o label `suite_name`.
+- O [`allurerc.mjs`](allurerc.mjs) associa esse label a um ambiente: "App local" ou "Saucedemo".
+- `npm run allure` gera o relatório a partir de `reports/*/allure-results`, ou seja, das duas suites de uma vez.
+
 A triagem acrescenta a análise do Jev aos resultados do [`allure-playwright`](https://allurereport.org/docs/playwright/) ([`triage/allure.ts`](triage/allure.ts)):
 
 - **Labels**: `jev_verdict`, `jev_confidence`, `jev_test_code_defect` e `jev_slowness`.
@@ -131,12 +140,12 @@ cp .env.example .env        # põe a TYPESAFE_API_KEY no .env (ou deixa vazia pa
 | `npm test` / `npm run test:saucedemo` | Corre a suite (apenas Chromium) |
 | `npm run triage` / `npm run triage:saucedemo` | Triagem sobre o último relatório da suite |
 | `npm run test:triage` / `npm run test:triage:saucedemo` | Testes e triagem, mesmo que haja testes a falhar |
-| `npm run allure` / `npm run allure:saucedemo` | Gera o relatório Allure 3 (depois da triagem) |
-| `npm run allure:open` | Serve o Allure da suite local (`SUITE=saucedemo npm run allure:open` para a outra) |
+| `npm run allure` | Gera um relatório Allure 3 com as suites que tiverem resultados (depois da triagem) |
+| `npm run allure:open` | Serve o relatório Allure no browser |
 | `npm run typecheck` | `tsc` sem gerar ficheiros |
 | `npm start` | Arranca a app local em http://localhost:3000 |
 
-Tudo o que cada suite gera fica em `reports/<suite>/`: `results.json`, `playwright-report/`, `allure-results/`, `allure-report/` e `triage/` (Markdown, HTML e JSON). Os históricos ficam em `.history/<suite>/`.
+Tudo o que cada suite gera fica em `reports/<suite>/`: `results.json`, `playwright-report/`, `allure-results/` e `triage/` (Markdown, HTML e JSON). O Allure combinado fica em `reports/allure-report/`. Os históricos da triagem ficam em `.history/<suite>/` e o do Allure em `.history/allure.jsonl`.
 
 **Sem chave**, todas as falhas ficam `unclassified` e o exit code é 0. **Com chave**, o exit code é 1 se houver falhas classificadas como `bug`.
 
@@ -146,7 +155,7 @@ Tudo o que cada suite gera fica em `reports/<suite>/`: `results.json`, `playwrig
 |---|---|---|
 | `TYPESAFE_API_KEY` | – | Chave da API. Sem ela, a triagem corre em fallback |
 | `TYPESAFE_DEFAULT_MODEL` | `jev-latest` | Modelo. Fixa uma versão (ex.: `jev-1.13.0`) depois de afinares os limiares |
-| `SUITE` | `local` | Suite que a triagem e o Allure processam (`local` ou `saucedemo`) |
+| `SUITE` | `local` | Suite que a triagem processa (`local` ou `saucedemo`) |
 | `TRIAGE_CONFIDENCE_THRESHOLD` | `0.6` | Abaixo deste valor, a falha fica `needs_review` |
 | `TRIAGE_TEST_DEFECT_THRESHOLD` | `0.7` | `bug` com P(defeito do teste) acima disto passa a `needs_review` |
 | `TRIAGE_SLOWNESS_THRESHOLD` | `0.7` | A partir daqui, a lentidão vira tag `jev:slow` no Allure |
@@ -166,10 +175,17 @@ Em cada suite:
 2. Corre os testes com `continue-on-error`: os testes vermelhos não decidem sozinhos o resultado do job.
 3. Descarrega do GitHub Pages o histórico da triagem e o do Allure.
 4. Corre a triagem com `if: always()`. Este passo decide o resultado: o job falha só se houver veredictos em `TRIAGE_FAIL_ON`. Os restantes aparecem como avisos no summary.
-5. Gera o Allure 3, já com a análise do Jev.
-6. Publica os artifacts `reports-<suite>`.
+5. Publica os artifacts `reports-<suite>` e os `allure-results` já enriquecidos pelo Jev.
 
-Em push para `master`, o job `deploy-pages` junta as duas suites e publica-as: `local` na raiz e `saucedemo` em `/saucedemo/`. Cada uma tem a triagem, `/allure/`, `/playwright-report/` e os históricos. A publicação acontece mesmo quando os jobs falham por causa de um bug.
+Depois das duas suites:
+
+- O job **`allure`** junta os `allure-results` das duas, descarrega o histórico do Allure do Pages e gera **um único relatório Allure**.
+- O job **`deploy-pages`**, em push para `master`, publica tudo:
+  - `/`: triagem da suite local;
+  - `/saucedemo/`: triagem do saucedemo;
+  - `/allure/`: Allure com as duas suites.
+
+  Cada triagem tem também o seu `/playwright-report/` e o seu histórico. A publicação acontece mesmo quando os jobs falham por causa de um bug.
 
 > Para ativares o Pages num fork: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
@@ -194,7 +210,7 @@ tests/saucedemo/              testes do saucedemo + support.ts (login e fixture 
 playwright.shared.ts          configuração comum: reports/<suite>/, reporters, sem retries
 playwright.config.ts          suite local (webServer)
 playwright.saucedemo.config.ts suite saucedemo
-allurerc.mjs                  Allure 3: categorias por veredicto do Jev, histórico por suite
+allurerc.mjs                  Allure 3: um relatório, um environment por suite, categorias do Jev
 triage/
   config.ts           variáveis de ambiente e caminhos por suite
   report-parser.ts    lê o relatório JSON: erro, stack, código do teste, snapshot, data-test

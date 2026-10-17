@@ -81,6 +81,7 @@ await writeFile(
       config.suite === "local"
         ? [{ label: "saucedemo", href: "saucedemo/" }]
         : [{ label: "local", href: "../" }],
+    allureHref: config.suite === "local" ? "allure/index.html" : "../allure/index.html",
     usedJev: Boolean(config.apiKey),
     threshold: config.confidenceThreshold,
     failOn: config.failOn,

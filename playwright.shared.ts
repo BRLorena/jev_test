@@ -22,7 +22,9 @@ export function suiteConfig(suite: string): PlaywrightTestConfig {
       // A triagem lê este ficheiro.
       ["json", { outputFile: `${dir}/results.json` }],
       // Resultados Allure 3 (um JSON por teste); a triagem acrescenta-lhes a análise do Jev.
-      ["allure-playwright", { resultsDir: `${dir}/allure-results` }],
+      // O label `suite_name` diz ao Allure a que ambiente pertence cada resultado (ver allurerc.mjs).
+      // Não usamos `suite`: esse nome já é usado pelo Allure para a hierarquia (nome do ficheiro).
+      ["allure-playwright", { resultsDir: `${dir}/allure-results`, globalLabels: [{ name: "suite_name", value: suite }] }],
     ],
     use: { trace: "retain-on-failure" },
     projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
