@@ -39,7 +39,7 @@ flowchart LR
 O ficheiro mais importante para aprender é [`triage/jev-classifier.ts`](triage/jev-classifier.ts), que está comentado passo a passo:
 
 1. **A pergunta**: uma `choice` com três opções. Cada opção é descrita com `what`, `signals` e `not_for`, porque as categorias confundem-se com facilidade.
-2. **O state**: só factos observados, como o título, a mensagem de erro, um excerto do stack e o resultado de cada tentativa (`passed_on_retry`, `failed_attempts`, ...). Não enviamos o rótulo `flaky` do Playwright; o Jev tem de chegar lá a partir dos factos.
+2. **O state**: só factos observados, como o título, a mensagem de erro, um excerto do stack e a duração de cada tentativa. Os testes correm **sem retries** (`retries: 0`), por isso o Jev decide a partir de uma única tentativa. Se voltares a ativar os retries, o state passa a incluir `passed_on_retry` e `failed_attempts`, que são um sinal forte de flakiness.
 3. **A chamada**: `client.systemOne({ state, questions })`. A resposta vem tipada, com `choice`, `probabilities` e `confidence`.
 4. **A política fica no nosso código**: se `confidence < limiar`, o veredicto é `needs_review`. O que faz o job falhar é decidido por `TRIAGE_FAIL_ON`.
 
@@ -108,6 +108,11 @@ O workflow [`.github/workflows/e2e-triage.yml`](.github/workflows/e2e-triage.yml
 2. `npm test` com `continue-on-error`: os testes vermelhos não decidem sozinhos o resultado do job.
 3. `npm run triage` com `if: always()`. Este passo decide o resultado: falha só se houver veredictos em `TRIAGE_FAIL_ON`. Os restantes aparecem como avisos no summary e como anotações.
 4. Publica como artifacts o `playwright-report` (HTML) e o `triage-results` (Markdown, JSON e o relatório JSON do Playwright).
+5. Em push para `master`, publica no **GitHub Pages** a página da triagem (`index.html`) e o relatório HTML do Playwright (`/playwright-report/`). A página é publicada mesmo quando o job falha por causa de um bug.
+
+Página: **https://brlorena.github.io/jev_test/**
+
+> Para ativares o Pages num fork: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
 ### Configurar o secret
 
@@ -131,6 +136,7 @@ triage/
   report-parser.ts    lê o relatório JSON do Playwright
   jev-classifier.ts   ★ integração com o Jev
   markdown.ts         relatório Markdown
+  html.ts             página HTML do GitHub Pages
   triage.ts           ponto de entrada + exit code
 ```
 

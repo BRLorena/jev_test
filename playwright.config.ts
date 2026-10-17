@@ -10,7 +10,8 @@ const PORT = Number(process.env.PORT ?? 3000);
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
-  retries: process.env.CI ? 2 : 1,
+  // Sem retries: cada teste corre uma vez e o Jev classifica essa única tentativa.
+  retries: 0,
   reporter: [
     ["list"],
     ["html", { open: "never", outputFolder: "playwright-report" }],
@@ -19,7 +20,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: `http://localhost:${PORT}`,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

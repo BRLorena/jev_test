@@ -3,7 +3,7 @@
  *
  *   1. lê test-results/results.json
  *   2. classifica cada falha com o Jev (ou `unclassified` sem chave)
- *   3. escreve triage-output/triage-report.md + triage-results.json (+ GITHUB_STEP_SUMMARY)
+ *   3. escreve triage-output/triage-report.md, index.html (GitHub Pages) e triage-results.json (+ GITHUB_STEP_SUMMARY)
  *   4. exit code 1 só se houver falhas com veredicto em TRIAGE_FAIL_ON (default: bug)
  */
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
@@ -13,6 +13,7 @@ import { config } from "./config.ts";
 import { readFailedTests } from "./report-parser.ts";
 import { createJevClassifier } from "./jev-classifier.ts";
 import { renderMarkdown, type TriageItem } from "./markdown.ts";
+import { renderHtml } from "./html.ts";
 
 if (!existsSync(config.reportPath)) {
   console.error(`Relatório não encontrado: ${config.reportPath}. Corre primeiro "npm test".`);
@@ -50,6 +51,19 @@ const markdown = renderMarkdown(items, {
 
 await mkdir(config.outputDir, { recursive: true });
 await writeFile(join(config.outputDir, "triage-report.md"), markdown);
+const runUrl = process.env.GITHUB_RUN_ID
+  ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+  : undefined;
+await writeFile(
+  join(config.outputDir, "index.html"),
+  renderHtml(items, {
+    usedJev: Boolean(config.apiKey),
+    threshold: config.confidenceThreshold,
+    failOn: config.failOn,
+    blocking,
+    runUrl,
+  }),
+);
 await writeFile(
   join(config.outputDir, "triage-results.json"),
   JSON.stringify(

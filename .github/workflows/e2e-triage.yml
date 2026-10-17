@@ -7,6 +7,11 @@ on:
 permissions:
   contents: read
 
+# Só um deploy do GitHub Pages de cada vez; um novo push não cancela o que está a publicar.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -64,3 +69,33 @@ jobs:
             triage-output/
             test-results/results.json
           retention-days: 14
+
+      # GitHub Pages: só em push para master (PRs não publicam).
+      - name: Build Pages site
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          mkdir -p site
+          cp triage-output/index.html site/index.html
+          cp -r playwright-report site/playwright-report
+
+      - name: Upload Pages artifact
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/
+
+  # Publica a página mesmo quando o e2e falha por causa de um bug: é precisamente aí que interessa vê-la.
+  deploy-pages:
+    needs: e2e
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.e2e.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
