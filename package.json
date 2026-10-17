@@ -1,0 +1,28 @@
+{
+  "name": "playwright-jev-triage",
+  "version": "1.0.0",
+  "description": "Playwright + Jev (TypeSafe System One): triagem autom\u00e1tica de testes falhados",
+  "scripts": {
+    "test": "playwright test",
+    "triage": "node --env-file-if-exists=.env --import tsx triage/triage.ts",
+    "test:triage": "playwright test; npm run triage",
+    "typecheck": "tsc",
+    "start": "tsx app/server.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "^0.7.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.15"
+  }
+}

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mini Shop</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+      li { margin: 0.25rem 0; }
+      .error { color: #b00020; }
+    </style>
+  </head>
+  <body>
+    <h1>Mini Shop</h1>
+
+    <section>
+      <h2>Produtos</h2>
+      <ul id="products"></ul>
+    </section>
+
+    <section>
+      <h2>Carrinho</h2>
+      <ul id="cart"></ul>
+      <label><input type="checkbox" id="discount" /> Aplicar desconto de 10%</label>
+      <p>Total: <strong id="total">0.00</strong> €</p>
+    </section>
+
+    <section>
+      <h2>Stock</h2>
+      <p id="inventory-status">A carregar…</p>
+      <ul id="inventory"></ul>
+    </section>
+
+    <section>
+      <h2>Relatório</h2>
+      <button id="load-report">Carregar relatório</button>
+      <p id="report"></p>
+    </section>
+
+    <section>
+      <h2>Contacto</h2>
+      <form id="contact">
+        <input name="email" type="email" placeholder="email" required />
+        <button type="submit">Enviar</button>
+      </form>
+      <p id="contact-result" role="status"></p>
+    </section>
+
+    <script>
+      const cart = [];
+      let products = [];
+
+      function renderCart() {
+        const ul = document.getElementById("cart");
+        ul.innerHTML = "";
+        cart.forEach((p, i) => {
+          const li = document.createElement("li");
+          li.textContent = p.name + " ";
+          const btn = document.createElement("button");
+          btn.textContent = "Remover";
+          btn.setAttribute("aria-label", "Remover " + p.name);
+          btn.onclick = () => { cart.splice(i, 1); renderCart(); };
+          li.appendChild(btn);
+          ul.appendChild(li);
+        });
+
+        let total = cart.reduce((sum, p) => sum + p.price, 0);
+        if (document.getElementById("discount").checked) {
+          total = total * 0.9;
+          // BUG DE PROPÓSITO: o desconto é aplicado uma segunda vez.
+          total = total * 0.9;
+        }
+        document.getElementById("total").textContent = total.toFixed(2);
+      }
+
+      fetch("/api/products").then((r) => r.json()).then((list) => {
+        products = list;
+        const ul = document.getElementById("products");
+        list.forEach((p) => {
+          const li = document.createElement("li");
+          li.textContent = `${p.name} — ${p.price} € `;
+          const btn = document.createElement("button");
+          btn.textContent = "Adicionar";
+          btn.setAttribute("aria-label", "Adicionar " + p.name);
+          btn.onclick = () => { cart.push(p); renderCart(); };
+          li.appendChild(btn);
+          ul.appendChild(li);
+        });
+      });
+
+      document.getElementById("discount").onchange = renderCart;
+
+      fetch("/api/inventory").then(async (r) => {
+        const status = document.getElementById("inventory-status");
+        if (!r.ok) {
+          status.textContent = "Erro ao carregar stock (HTTP " + r.status + ")";
+          status.className = "error";
+          return;
+        }
+        const stock = await r.json();
+        status.textContent = "Stock atualizado";
+        const ul = document.getElementById("inventory");
+        Object.entries(stock).forEach(([id, qty]) => {
+          const li = document.createElement("li");
+          li.dataset.productId = id;
+          li.textContent = `Produto ${id}: ${qty} unidades`;
+          ul.appendChild(li);
+        });
+      });
+
+      document.getElementById("load-report").onclick = async () => {
+        const data = await (await fetch("/api/report")).json();
+        document.getElementById("report").textContent = `Encomendas: ${data.orders}`;
+      };
+
+      document.getElementById("contact").onsubmit = (e) => {
+        e.preventDefault();
+        const email = new FormData(e.target).get("email");
+        document.getElementById("contact-result").textContent = "Obrigado, " + email + "!";
+      };
+    </script>
+  </body>
+</html>
