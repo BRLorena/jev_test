@@ -22,7 +22,16 @@ function bar(p?: number) {
 
 export function renderHtml(
   items: TriageItem[],
-  opts: { usedJev: boolean; threshold: number; failOn: Verdict[]; blocking: TriageItem[]; runUrl?: string },
+  opts: {
+    suite: string;
+    usedJev: boolean;
+    threshold: number;
+    failOn: Verdict[];
+    blocking: TriageItem[];
+    runUrl?: string;
+    /** Links para as outras suites publicadas no Pages. */
+    nav: { label: string; href: string }[];
+  },
 ): string {
   const rows = items
     .map(({ test, result, history }) => {
@@ -32,8 +41,7 @@ export function renderHtml(
   <td>${esc(test.title)}<br><small>${esc(test.file)}</small></td>
   <td>${result.suggested ?? "–"}</td>
   <td class="num">${pct(result.confidence)}</td>
-  ${bar(p?.bug)}${bar(p?.flaky)}${bar(p?.environment)}
-  <td><small>${test.attempts.map((a) => a.status).join(" → ")}</small></td>
+  ${bar(p?.bug)}${bar(p?.flaky)}${bar(p?.environment)}${bar(result.testCodeDefect)}${bar(result.slowness)}
   <td title="execuções anteriores, a mais recente à direita">${historyStrip(history)}</td>
 </tr>`;
     })
@@ -59,7 +67,7 @@ ${result.model ? `<small>modelo: ${esc(result.model)}</small>` : ""}
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Triagem Jev</title>
+<title>Triagem Jev · ${esc(opts.suite)}</title>
 <style>
   :root { --bg:#fff; --fg:#1b1f24; --muted:#59636e; --line:#d1d9e0; --card:#f6f8fa; --accent:#0969da;
           --bug:#cf222e; --flaky:#9a6700; --env:#8250df; --review:#0969da; --none:#59636e; }
@@ -86,11 +94,15 @@ ${result.model ? `<small>modelo: ${esc(result.model)}</small>` : ""}
   pre { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:12px; overflow-x:auto; font-size:13px; }
   details { margin:8px 0; } summary { cursor:pointer; }
   .err { color:var(--bug); }
+  .suites { font-size:13px; color:var(--muted); }
 </style>
 </head>
 <body>
 <main>
-<h1>🧪 Triagem de falhas Playwright (Jev)</h1>
+<nav class="suites">Suites: ${[{ label: opts.suite, href: "" }, ...opts.nav]
+    .map((n) => (n.href ? `<a href="${esc(n.href)}">${esc(n.label)}</a>` : `<b>${esc(n.label)}</b>`))
+    .join(" · ")}</nav>
+<h1>🧪 Triagem de falhas Playwright (Jev) · ${esc(opts.suite)}</h1>
 <p>
   <a href="allure/index.html">Relatório Allure →</a>
   · <a href="playwright-report/index.html">Relatório HTML do Playwright →</a>
@@ -102,9 +114,10 @@ ${
   items.length === 0
     ? "<p>✅ Nenhum teste falhou.</p>"
     : `<p>${items.length} falha(s) · limiar de confiança <b>${opts.threshold}</b> · o job falha com <code>${opts.failOn.join(", ")}</code></p>
+<p><small><b>Defeito do teste?</b> e <b>Lentidão?</b> são perguntas <code>noul</code>: a probabilidade de "sim". Um <code>bug</code> com defeito do teste alto passa a <code>needs_review</code>.</small></p>
 <div class="wrap"><table>
 <thead><tr><th>Veredicto</th><th>Teste</th><th>Sugestão do Jev</th><th class="num">Confiança</th>
-<th class="num">bug</th><th class="num">flaky</th><th class="num">environment</th><th>Tentativas</th><th>Histórico</th></tr></thead>
+<th class="num">bug</th><th class="num">flaky</th><th class="num">environment</th><th class="num">Defeito do teste?</th><th class="num">Lentidão?</th><th>Histórico</th></tr></thead>
 <tbody>
 ${rows}
 </tbody></table></div>

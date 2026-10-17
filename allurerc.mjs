@@ -10,11 +10,14 @@ const jevCategory = (name, verdict) => ({
   expand: true,
 });
 
+// Uma configuração para as duas suites: SUITE=local (default) ou SUITE=saucedemo.
+const suite = process.env.SUITE ?? "local";
+
 export default defineConfig({
-  name: "Playwright + Jev",
-  output: "./allure-report",
+  name: `Playwright + Jev · ${suite}`,
+  output: `./reports/${suite}/allure-report`,
   // Histórico do Allure (trends, deteção de flaky). No CI é descarregado do GitHub Pages.
-  historyPath: "./.allure-history/history.jsonl",
+  historyPath: `./.history/${suite}/allure.jsonl`,
   historyLimit: 20,
   categories: {
     rules: [

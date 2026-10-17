@@ -1,30 +1,13 @@
-import { defineConfig, devices } from "@playwright/test";
-
-// Carrega o .env local, se existir (Node >= 21.7, sem dotenv).
-try {
-  process.loadEnvFile();
-} catch {}
+// Suite "local": a mini loja em app/, levantada pelo webServer.
+import { defineConfig } from "@playwright/test";
+import { suiteConfig } from "./playwright.shared.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
+const base = suiteConfig("local");
 
 export default defineConfig({
-  testDir: "./tests",
-  fullyParallel: true,
-  // Sem retries: cada teste corre uma vez e o Jev classifica essa única tentativa.
-  retries: 0,
-  reporter: [
-    ["list"],
-    ["html", { open: "never", outputFolder: "playwright-report" }],
-    // A triagem lê este ficheiro.
-    ["json", { outputFile: "test-results/results.json" }],
-    // Resultados Allure 3 (um JSON por teste); a triagem acrescenta-lhes a análise do Jev.
-    ["allure-playwright", { resultsDir: "allure-results" }],
-  ],
-  use: {
-    baseURL: `http://localhost:${PORT}`,
-    trace: "retain-on-failure",
-  },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  ...base,
+  use: { ...base.use, baseURL: `http://localhost:${PORT}` },
   webServer: {
     command: "npx tsx app/server.ts",
     url: `http://localhost:${PORT}`,

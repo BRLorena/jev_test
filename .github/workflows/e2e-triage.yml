@@ -14,16 +14,33 @@ concurrency:
 
 jobs:
   e2e:
+    name: e2e (${{ matrix.suite }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      # Uma suite a falhar não cancela a outra.
+      fail-fast: false
+      matrix:
+        include:
+          # local: a mini loja em app/. Publicada na raiz do Pages.
+          - suite: local
+            test_script: test
+            site_path: ""
+          # saucedemo: https://www.saucedemo.com. Publicada em /saucedemo/.
+          - suite: saucedemo
+            test_script: test:saucedemo
+            site_path: saucedemo
     env:
       CI: "true"
-      # Falhas de propósito da app de demonstração.
+      SUITE: ${{ matrix.suite }}
+      # Falhas de propósito: app local (503 e atraso aleatório) e saucedemo (rede cortada num teste).
       FAKE_ENV_DOWN: "1"
       FLAKY_MAX_DELAY_MS: "2000"
+      SAUCE_ENV_DOWN: "1"
       # Regras da triagem: configuráveis em Settings → Secrets and variables → Actions → Variables.
       TRIAGE_FAIL_ON: ${{ vars.TRIAGE_FAIL_ON || 'bug' }}
       TRIAGE_CONFIDENCE_THRESHOLD: ${{ vars.TRIAGE_CONFIDENCE_THRESHOLD || '0.6' }}
+      TRIAGE_TEST_DEFECT_THRESHOLD: ${{ vars.TRIAGE_TEST_DEFECT_THRESHOLD || '0.7' }}
 
     steps:
       - uses: actions/checkout@v7
@@ -41,20 +58,20 @@ jobs:
 
       # continue-on-error: quem decide se o job falha é a triagem, não o número de testes vermelhos.
       - name: Run Playwright tests
-        id: tests
         continue-on-error: true
-        run: npm test
+        run: npm run ${{ matrix.test_script }}
 
-      # Histórico das execuções anteriores: publicado no GitHub Pages pelo deploy anterior.
-      # Na primeira execução (ou sem Pages) não existe, e a triagem corre sem histórico.
-      # O mesmo vale para o histórico do Allure (trends e deteção de flaky do próprio Allure).
+      # Históricos das execuções anteriores, publicados no GitHub Pages pelo deploy anterior.
+      # Na primeira execução (ou sem Pages) não existem, e tudo corre sem histórico.
       - name: Download history from GitHub Pages
         if: always()
+        env:
+          SITE_PATH: ${{ matrix.site_path }}
         run: |
-          mkdir -p .triage-history .allure-history
-          base="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}"
-          curl -fsSL "$base/history.json" -o .triage-history/history.json && echo "Histórico da triagem descarregado" || echo "Sem histórico da triagem"
-          curl -fsSL "$base/allure-history.jsonl" -o .allure-history/history.jsonl && echo "Histórico do Allure descarregado" || echo "Sem histórico do Allure"
+          mkdir -p ".history/$SUITE"
+          base="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/${SITE_PATH:+$SITE_PATH/}"
+          curl -fsSL "${base}history.json" -o ".history/$SUITE/triage.json" && echo "Histórico da triagem descarregado" || echo "Sem histórico da triagem"
+          curl -fsSL "${base}allure-history.jsonl" -o ".history/$SUITE/allure.jsonl" && echo "Histórico do Allure descarregado" || echo "Sem histórico do Allure"
 
       # ★ Aqui entra o Jev. Sem o secret, corre em fallback (unclassified) e não falha.
       - name: Triage failures with Jev
@@ -68,50 +85,42 @@ jobs:
         if: always()
         run: npm run allure
 
-      - name: Upload Playwright HTML report
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 14
-
-      - name: Upload Allure report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: allure-report
-          path: allure-report/
-          retention-days: 14
-
-      - name: Upload triage results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: triage-results
+          name: reports-${{ matrix.suite }}
           path: |
-            triage-output/
-            test-results/results.json
+            reports/${{ matrix.suite }}/playwright-report/
+            reports/${{ matrix.suite }}/allure-report/
+            reports/${{ matrix.suite }}/triage/
+            reports/${{ matrix.suite }}/results.json
           retention-days: 14
 
-      # GitHub Pages: só em push para master (PRs não publicam).
+      # Parte desta suite no site do GitHub Pages (só em push para master; PRs não publicam).
       - name: Build Pages site
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          SITE_PATH: ${{ matrix.site_path }}
         run: |
-          mkdir -p site
-          cp triage-output/index.html site/index.html
-          cp triage-output/history.json site/history.json
-          cp -r allure-report site/allure
-          cp .allure-history/history.jsonl site/allure-history.jsonl || true
-          cp -r playwright-report site/playwright-report
+          out="site/${SITE_PATH}"
+          mkdir -p "$out"
+          cp "reports/$SUITE/triage/index.html" "$out/index.html"
+          cp "reports/$SUITE/triage/history.json" "$out/history.json"
+          cp -r "reports/$SUITE/playwright-report" "$out/playwright-report"
+          cp -r "reports/$SUITE/allure-report" "$out/allure"
+          cp ".history/$SUITE/allure.jsonl" "$out/allure-history.jsonl" || true
 
-      - name: Upload Pages artifact
+      - name: Upload site part
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
+          name: site-${{ matrix.suite }}
           path: site/
+          retention-days: 1
 
-  # Publica a página mesmo quando o e2e falha por causa de um bug: é precisamente aí que interessa vê-la.
+  # Junta as partes das duas suites e publica. Corre mesmo quando o e2e falha por causa de
+  # um bug: é precisamente aí que interessa ver os relatórios.
   deploy-pages:
     needs: e2e
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.e2e.result != 'cancelled'
@@ -123,6 +132,18 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Download site parts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: site-*
+          path: site
+          merge-multiple: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

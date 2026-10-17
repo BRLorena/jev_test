@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["app", "tests", "triage", "playwright.config.ts"]
+  "include": ["app", "tests", "triage", "playwright.config.ts", "playwright.shared.ts", "playwright.saucedemo.config.ts"]
 }

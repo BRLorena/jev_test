@@ -24,9 +24,9 @@ const cell = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
 
 export function renderMarkdown(
   items: TriageItem[],
-  opts: { usedJev: boolean; threshold: number; failOn: Verdict[]; blocking: TriageItem[] },
+  opts: { suite: string; usedJev: boolean; threshold: number; failOn: Verdict[]; blocking: TriageItem[] },
 ): string {
-  const lines: string[] = ["## 🧪 Triagem de falhas Playwright (Jev)", ""];
+  const lines: string[] = [`## 🧪 Triagem de falhas Playwright (Jev) · suite \`${opts.suite}\``, ""];
 
   if (!opts.usedJev) {
     lines.push(
@@ -48,14 +48,14 @@ export function renderMarkdown(
     "",
     `Limiar de confiança: **${opts.threshold}** · O job falha com: \`${opts.failOn.join(", ")}\``,
     "",
-    "| Veredicto | Teste | Sugestão do Jev | Confiança | bug | flaky | environment | Tentativas | Histórico |",
-    "|---|---|---|---|---|---|---|---|---|",
+    "| Veredicto | Teste | Sugestão do Jev | Confiança | bug | flaky | environment | Defeito do teste? | Lentidão? | Histórico |",
+    "|---|---|---|---|---|---|---|---|---|---|",
   );
 
   for (const { test, result, history } of items) {
     const p = result.probabilities;
     lines.push(
-      `| ${ICON[result.verdict]} \`${result.verdict}\` | ${cell(test.title)}<br><sub>${cell(test.file)}</sub> | ${result.suggested ?? "–"} | ${pct(result.confidence)} | ${pct(p?.bug)} | ${pct(p?.flaky)} | ${pct(p?.environment)} | ${test.attempts.map((a) => a.status).join(" → ")} | ${historyStrip(history)} |`,
+      `| ${ICON[result.verdict]} \`${result.verdict}\` | ${cell(test.title)}<br><sub>${cell(test.file)}</sub> | ${result.suggested ?? "–"} | ${pct(result.confidence)} | ${pct(p?.bug)} | ${pct(p?.flaky)} | ${pct(p?.environment)} | ${pct(result.testCodeDefect)} | ${pct(result.slowness)} | ${historyStrip(history)} |`,
     );
   }
 

@@ -30,7 +30,7 @@ console.log(`Falhas encontradas: ${failures.length} · testes com histórico: ${
 
 // Com chave → Jev. Sem chave → fallback, nenhuma chamada de rede.
 const classify = config.apiKey
-  ? createJevClassifier(config.apiKey, config.confidenceThreshold)
+  ? createJevClassifier(config.apiKey, config)
   : async () => ({ verdict: "unclassified" as const });
 if (!config.apiKey) console.log("TYPESAFE_API_KEY não definida → modo fallback (unclassified).");
 
@@ -49,6 +49,7 @@ await Promise.all(
 
 const blocking = items.filter((i) => config.failOn.includes(i.result.verdict));
 const markdown = renderMarkdown(items, {
+  suite: config.suite,
   usedJev: Boolean(config.apiKey),
   threshold: config.confidenceThreshold,
   failOn: config.failOn,
@@ -57,7 +58,7 @@ const markdown = renderMarkdown(items, {
 
 await mkdir(config.outputDir, { recursive: true });
 
-const enriched = await enrichAllureResults(config.allureResultsDir, items);
+const enriched = await enrichAllureResults(config.allureResultsDir, items, config);
 if (enriched > 0) console.log(`Allure: ${enriched} resultado(s) enriquecido(s) com a análise do Jev.`);
 
 // O histórico só é atualizado depois de classificar: o Jev vê apenas execuções anteriores.
@@ -74,6 +75,12 @@ const runUrl = process.env.GITHUB_RUN_ID
 await writeFile(
   join(config.outputDir, "index.html"),
   renderHtml(items, {
+    suite: config.suite,
+    // No Pages, "local" está na raiz e as outras suites em /<suite>/.
+    nav:
+      config.suite === "local"
+        ? [{ label: "saucedemo", href: "saucedemo/" }]
+        : [{ label: "local", href: "../" }],
     usedJev: Boolean(config.apiKey),
     threshold: config.confidenceThreshold,
     failOn: config.failOn,
@@ -93,7 +100,11 @@ if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SU
 
 for (const item of items) {
   const { test, result } = item;
-  const line = `[${result.verdict}] ${test.title}` + (result.confidence !== undefined ? ` (confiança ${result.confidence.toFixed(2)})` : "");
+  const extra =
+    result.confidence !== undefined
+      ? ` (confiança ${result.confidence.toFixed(2)} · defeito do teste ${result.testCodeDefect?.toFixed(2)} · lentidão ${result.slowness?.toFixed(2)})`
+      : "";
+  const line = `[${result.verdict}] ${test.title}${extra}`;
   console.log(line);
   // Anotações do GitHub Actions: erro para bloqueantes, aviso para o resto.
   if (process.env.GITHUB_ACTIONS) {

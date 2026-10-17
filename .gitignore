@@ -1,11 +1,6 @@
 node_modules/
 .env
-test-results/
-playwright-report/
-blob-report/
-triage-output/
 .DS_Store
-.triage-history/
-allure-results/
-allure-report/
-.allure-history/
+reports/
+.history/
+.playwright-cli/

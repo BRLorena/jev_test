@@ -16,11 +16,15 @@ interface AllureResult {
   attachments?: { name: string; source: string; type: string }[];
 }
 
-const JEV_LABELS = new Set(["jev_verdict", "jev_confidence"]);
+const JEV_LABELS = new Set(["jev_verdict", "jev_confidence", "jev_test_code_defect", "jev_slowness"]);
 const JEV_MARK = "<!-- jev -->";
 
 /** Devolve quantos resultados foram enriquecidos. */
-export async function enrichAllureResults(dir: string, items: TriageItem[]): Promise<number> {
+export async function enrichAllureResults(
+  dir: string,
+  items: TriageItem[],
+  thresholds: { testDefectThreshold: number; slownessThreshold: number },
+): Promise<number> {
   if (!existsSync(dir)) return 0;
   const byKey = new Map(items.map((i) => [i.test.key, i]));
   let count = 0;
@@ -36,7 +40,8 @@ export async function enrichAllureResults(dir: string, items: TriageItem[]): Pro
     const project = result.labels?.find((l) => l.name === "parentSuite")?.value;
     const item = byKey.get(`${result.fullName} › ${project}`);
     if (!item) continue;
-    const { verdict, suggested, confidence, probabilities, model, state, error } = item.result;
+    const { verdict, suggested, confidence, probabilities, testCodeDefect, slowness, model, state, error } =
+      item.result;
 
     // Labels: usados pelas categorias em allurerc.mjs e visíveis/filtráveis no relatório.
     // Remover os antigos torna o passo idempotente (pode correr várias vezes).
@@ -45,6 +50,15 @@ export async function enrichAllureResults(dir: string, items: TriageItem[]): Pro
     );
     result.labels.push({ name: "jev_verdict", value: verdict }, { name: "tag", value: `jev:${verdict}` });
     if (confidence !== undefined) result.labels.push({ name: "jev_confidence", value: confidence.toFixed(2) });
+    // Respostas das perguntas noul: valor bruto como label, e uma tag quando passam o limiar.
+    if (testCodeDefect !== undefined) {
+      result.labels.push({ name: "jev_test_code_defect", value: testCodeDefect.toFixed(2) });
+      if (testCodeDefect >= thresholds.testDefectThreshold) result.labels.push({ name: "tag", value: "jev:test-code-defect" });
+    }
+    if (slowness !== undefined) {
+      result.labels.push({ name: "jev_slowness", value: slowness.toFixed(2) });
+      if (slowness >= thresholds.slownessThreshold) result.labels.push({ name: "tag", value: "jev:slow" });
+    }
 
     // Descrição: resumo legível no topo do teste.
     const pct = (n?: number) => (n === undefined ? "–" : `${Math.round(n * 100)}%`);
@@ -52,7 +66,8 @@ export async function enrichAllureResults(dir: string, items: TriageItem[]): Pro
       JEV_MARK,
       `**Triagem Jev:** \`${verdict}\`` + (suggested ? ` (sugestão: ${suggested}, confiança ${pct(confidence)})` : ""),
       probabilities
-        ? `bug ${pct(probabilities.bug)} · flaky ${pct(probabilities.flaky)} · environment ${pct(probabilities.environment)}`
+        ? `bug ${pct(probabilities.bug)} · flaky ${pct(probabilities.flaky)} · environment ${pct(probabilities.environment)}` +
+          `\n\nDefeito no código do teste? ${pct(testCodeDefect)} · Lentidão? ${pct(slowness)}`
         : error
           ? `Erro ao chamar o Jev: ${error}`
           : "Sem TYPESAFE_API_KEY: não classificado.",
@@ -65,7 +80,11 @@ export async function enrichAllureResults(dir: string, items: TriageItem[]): Pro
     const source = `${randomUUID()}-attachment.json`;
     await writeFile(
       join(dir, source),
-      JSON.stringify({ verdict, suggested, confidence, probabilities, model, error, state }, null, 2),
+      JSON.stringify(
+        { verdict, suggested, confidence, probabilities, testCodeDefect, slowness, model, error, state },
+        null,
+        2,
+      ),
     );
     result.attachments = (result.attachments ?? []).filter((a) => a.name !== "Jev triage");
     result.attachments.push({ name: "Jev triage", source, type: "application/json" });
