@@ -2,9 +2,12 @@
 import type { Verdict } from "./config.ts";
 import type { Classification } from "./jev-classifier.ts";
 import type { FailedTest } from "./report-parser.ts";
+import { historyStrip, type HistoryEntry } from "./history.ts";
 
 export interface TriageItem {
   test: FailedTest;
+  /** Execuções anteriores deste teste (a mais recente no fim). */
+  history: HistoryEntry[];
   result: Classification;
 }
 
@@ -45,14 +48,14 @@ export function renderMarkdown(
     "",
     `Limiar de confiança: **${opts.threshold}** · O job falha com: \`${opts.failOn.join(", ")}\``,
     "",
-    "| Veredicto | Teste | Sugestão do Jev | Confiança | bug | flaky | environment | Tentativas |",
-    "|---|---|---|---|---|---|---|---|",
+    "| Veredicto | Teste | Sugestão do Jev | Confiança | bug | flaky | environment | Tentativas | Histórico |",
+    "|---|---|---|---|---|---|---|---|---|",
   );
 
-  for (const { test, result } of items) {
+  for (const { test, result, history } of items) {
     const p = result.probabilities;
     lines.push(
-      `| ${ICON[result.verdict]} \`${result.verdict}\` | ${cell(test.title)}<br><sub>${cell(test.file)}</sub> | ${result.suggested ?? "–"} | ${pct(result.confidence)} | ${pct(p?.bug)} | ${pct(p?.flaky)} | ${pct(p?.environment)} | ${test.attempts.map((a) => a.status).join(" → ")} |`,
+      `| ${ICON[result.verdict]} \`${result.verdict}\` | ${cell(test.title)}<br><sub>${cell(test.file)}</sub> | ${result.suggested ?? "–"} | ${pct(result.confidence)} | ${pct(p?.bug)} | ${pct(p?.flaky)} | ${pct(p?.environment)} | ${test.attempts.map((a) => a.status).join(" → ")} | ${historyStrip(history)} |`,
     );
   }
 

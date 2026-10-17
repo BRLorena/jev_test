@@ -1,16 +1,18 @@
 /**
  * Triagem das falhas da última execução do Playwright.
  *
- *   1. lê test-results/results.json
- *   2. classifica cada falha com o Jev (ou `unclassified` sem chave)
+ *   1. lê test-results/results.json e o histórico de execuções anteriores
+ *   2. classifica cada falha com o Jev (ou `unclassified` sem chave), incluindo o histórico no state
  *   3. escreve triage-output/triage-report.md, index.html (GitHub Pages) e triage-results.json (+ GITHUB_STEP_SUMMARY)
+ *      e atualiza o histórico (também copiado para triage-output/history.json, publicado no Pages)
  *   4. exit code 1 só se houver falhas com veredicto em TRIAGE_FAIL_ON (default: bug)
  */
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "./config.ts";
-import { readFailedTests } from "./report-parser.ts";
+import { readReport } from "./report-parser.ts";
+import { appendRun, loadHistory, saveHistory } from "./history.ts";
 import { createJevClassifier } from "./jev-classifier.ts";
 import { renderMarkdown, type TriageItem } from "./markdown.ts";
 import { renderHtml } from "./html.ts";
@@ -20,8 +22,9 @@ if (!existsSync(config.reportPath)) {
   process.exit(2);
 }
 
-const failures = await readFailedTests(config.reportPath);
-console.log(`Falhas encontradas: ${failures.length}`);
+const { failures, runs } = await readReport(config.reportPath);
+const history = await loadHistory(config.historyPath);
+console.log(`Falhas encontradas: ${failures.length} · testes com histórico: ${Object.keys(history.tests).length}`);
 
 // Com chave → Jev. Sem chave → fallback, nenhuma chamada de rede.
 const classify = config.apiKey
@@ -36,7 +39,8 @@ await Promise.all(
   Array.from({ length: Math.min(config.concurrency, failures.length) }, async () => {
     while (next < failures.length) {
       const i = next++;
-      items[i] = { test: failures[i], result: await classify(failures[i]) };
+      const past = history.tests[failures[i].key] ?? [];
+      items[i] = { test: failures[i], history: past, result: await classify(failures[i], past) };
     }
   }),
 );
@@ -50,6 +54,12 @@ const markdown = renderMarkdown(items, {
 });
 
 await mkdir(config.outputDir, { recursive: true });
+
+// O histórico só é atualizado depois de classificar: o Jev vê apenas execuções anteriores.
+const updated = appendRun(history, runs, config.runId, config.historySize);
+await saveHistory(config.historyPath, updated);
+await saveHistory(join(config.outputDir, "history.json"), updated);
+
 await writeFile(join(config.outputDir, "triage-report.md"), markdown);
 const runUrl = process.env.GITHUB_RUN_ID
   ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`

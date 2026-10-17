@@ -26,6 +26,13 @@ export const config = {
   /** Veredictos que fazem o job falhar (ex.: "bug" ou "bug,needs_review"). */
   failOn: list(process.env.TRIAGE_FAIL_ON, "bug") as Verdict[],
 
+  /** Histórico de execuções anteriores (no CI é descarregado do GitHub Pages antes da triagem). */
+  historyPath: process.env.TRIAGE_HISTORY_PATH ?? ".triage-history/history.json",
+  /** Quantas execuções guardar por teste. */
+  historySize: Number(process.env.TRIAGE_HISTORY_SIZE ?? 20),
+  /** Identificador desta execução no histórico. */
+  runId: process.env.GITHUB_RUN_ID ?? `local-${new Date().toISOString()}`,
+
   /** Pedidos ao Jev em paralelo. */
   concurrency: Number(process.env.TRIAGE_CONCURRENCY ?? 4),
 };

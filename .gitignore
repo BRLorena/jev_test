@@ -5,3 +5,4 @@ playwright-report/
 blob-report/
 triage-output/
 .DS_Store
+.triage-history/

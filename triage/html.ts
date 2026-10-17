@@ -1,6 +1,7 @@
 // Gera a página HTML da triagem publicada no GitHub Pages (index.html).
 import type { Verdict } from "./config.ts";
 import type { TriageItem } from "./markdown.ts";
+import { historyStrip } from "./history.ts";
 
 const LABEL: Record<Verdict, string> = {
   bug: "🐞 bug",
@@ -24,7 +25,7 @@ export function renderHtml(
   opts: { usedJev: boolean; threshold: number; failOn: Verdict[]; blocking: TriageItem[]; runUrl?: string },
 ): string {
   const rows = items
-    .map(({ test, result }) => {
+    .map(({ test, result, history }) => {
       const p = result.probabilities;
       return `<tr>
   <td><span class="tag ${result.verdict}">${LABEL[result.verdict]}</span></td>
@@ -33,6 +34,7 @@ export function renderHtml(
   <td class="num">${pct(result.confidence)}</td>
   ${bar(p?.bug)}${bar(p?.flaky)}${bar(p?.environment)}
   <td><small>${test.attempts.map((a) => a.status).join(" → ")}</small></td>
+  <td title="execuções anteriores, a mais recente à direita">${historyStrip(history)}</td>
 </tr>`;
     })
     .join("\n");
@@ -101,7 +103,7 @@ ${
     : `<p>${items.length} falha(s) · limiar de confiança <b>${opts.threshold}</b> · o job falha com <code>${opts.failOn.join(", ")}</code></p>
 <div class="wrap"><table>
 <thead><tr><th>Veredicto</th><th>Teste</th><th>Sugestão do Jev</th><th class="num">Confiança</th>
-<th class="num">bug</th><th class="num">flaky</th><th class="num">environment</th><th>Tentativas</th></tr></thead>
+<th class="num">bug</th><th class="num">flaky</th><th class="num">environment</th><th>Tentativas</th><th>Histórico</th></tr></thead>
 <tbody>
 ${rows}
 </tbody></table></div>

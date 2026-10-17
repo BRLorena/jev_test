@@ -45,6 +45,15 @@ jobs:
         continue-on-error: true
         run: npm test
 
+      # Histórico das execuções anteriores: publicado no GitHub Pages pelo deploy anterior.
+      # Na primeira execução (ou sem Pages) não existe, e a triagem corre sem histórico.
+      - name: Download triage history from GitHub Pages
+        if: always()
+        run: |
+          mkdir -p .triage-history
+          url="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/history.json"
+          curl -fsSL "$url" -o .triage-history/history.json && echo "Histórico descarregado de $url" || echo "Sem histórico anterior"
+
       # ★ Aqui entra o Jev. Sem o secret, corre em fallback (unclassified) e não falha.
       - name: Triage failures with Jev
         if: always()
@@ -76,6 +85,7 @@ jobs:
         run: |
           mkdir -p site
           cp triage-output/index.html site/index.html
+          cp triage-output/history.json site/history.json
           cp -r playwright-report site/playwright-report
 
       - name: Upload Pages artifact

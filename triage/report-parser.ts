@@ -9,9 +9,19 @@ export interface Attempt {
   error?: string;
 }
 
+/** Resultado final de um teste nesta execução (passados incluídos), usado no histórico. */
+export interface TestRun {
+  key: string;
+  status: "passed" | "failed" | "flaky" | "skipped";
+  durationMs: number;
+  error?: string;
+}
+
 /** Tudo o que sabemos de um teste que falhou pelo menos uma vez. */
 export interface FailedTest {
   id: string;
+  /** Identificador estável entre execuções (ficheiro + título), chave do histórico. */
+  key: string;
   title: string;
   file: string;
   project: string;
@@ -47,11 +57,29 @@ function firstError(r: JsonResult): JsonError | undefined {
   return r.error ?? r.errors?.[0];
 }
 
-function collect(suite: JsonSuite, titlePath: string[], out: FailedTest[]) {
+const FINAL_STATUS: Record<string, TestRun["status"]> = {
+  expected: "passed",
+  unexpected: "failed",
+  flaky: "flaky",
+  skipped: "skipped",
+};
+
+function collect(suite: JsonSuite, titlePath: string[], out: FailedTest[], runs: TestRun[]) {
   const path = suite.title && !suite.title.endsWith(".ts") ? [...titlePath, suite.title] : titlePath;
 
   for (const spec of suite.specs ?? []) {
     for (const t of spec.tests) {
+      const title = [...path, spec.title].join(" › ");
+      const key = `${spec.file} › ${title} › ${t.projectName}`;
+      const lastResult = t.results.at(-1);
+      const lastError = lastResult ? firstError(lastResult) : undefined;
+      runs.push({
+        key,
+        status: FINAL_STATUS[t.status] ?? "failed",
+        durationMs: t.results.reduce((sum, r) => sum + r.duration, 0),
+        error: lastError ? clean(lastError.message).split("\n")[0] : undefined,
+      });
+
       if (t.status !== "unexpected" && t.status !== "flaky") continue;
 
       const failed = t.results.filter((r) => r.status !== "passed" && r.status !== "skipped");
@@ -60,7 +88,8 @@ function collect(suite: JsonSuite, titlePath: string[], out: FailedTest[]) {
 
       out.push({
         id: `${spec.file}:${spec.line} › ${t.projectName}`,
-        title: [...path, spec.title].join(" › "),
+        key,
+        title,
         file: `${spec.file}:${spec.line}`,
         project: t.projectName,
         outcome: t.status,
@@ -76,12 +105,14 @@ function collect(suite: JsonSuite, titlePath: string[], out: FailedTest[]) {
       });
     }
   }
-  for (const child of suite.suites ?? []) collect(child, path, out);
+  for (const child of suite.suites ?? []) collect(child, path, out, runs);
 }
 
-export async function readFailedTests(reportPath: string): Promise<FailedTest[]> {
+/** `failures`: testes a classificar. `runs`: todos os testes, para o histórico. */
+export async function readReport(reportPath: string): Promise<{ failures: FailedTest[]; runs: TestRun[] }> {
   const report = JSON.parse(await readFile(reportPath, "utf8")) as JsonReport;
-  const out: FailedTest[] = [];
-  for (const suite of report.suites) collect(suite, [], out);
-  return out;
+  const failures: FailedTest[] = [];
+  const runs: TestRun[] = [];
+  for (const suite of report.suites) collect(suite, [], failures, runs);
+  return { failures, runs };
 }

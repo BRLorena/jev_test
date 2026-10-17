@@ -11,9 +11,10 @@
  *
  * Docs: https://docs.typesafe.ai/primitives/choice  e  https://docs.typesafe.ai/confidence
  */
-import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
+import { choice, TypeSafeClient, type JsonValue } from "@typesafe-ai/sdk";
 import { type Category, type Verdict } from "./config.ts";
 import type { FailedTest } from "./report-parser.ts";
+import type { HistoryEntry } from "./history.ts";
 
 // 1) A pergunta. Os critérios usam objetos (what / not_for / signals) porque as três
 //    categorias confundem-se facilmente; o Jev lê os nomes e os valores dos campos.
@@ -24,7 +25,7 @@ const triageQuestions = {
       question:
         "What is the most likely root cause of this failed end-to-end test (`failure`)?",
       focus:
-        "Use the error message, stack excerpt and the outcome of every attempt (`failure.attempts`), including whether a retry passed.",
+        "Use the error message, stack excerpt, the attempts in this run (`failure.attempts`) and the results of the same test in previous runs (`failure.history`).",
     },
     {
       bug: {
@@ -32,12 +33,14 @@ const triageQuestions = {
         signals: [
           "an assertion receives a wrong but stable value (e.g. a wrong total)",
           "fails the same way on every attempt",
+          "in `failure.history` it fails on every run since a given point, with the same error",
         ],
         not_for: "Timeouts that vary between attempts, or a dependency returning 5xx/being unreachable.",
       },
       flaky: {
         what: "Non-deterministic failure caused by timing, race conditions or test ordering; the product is not necessarily wrong.",
         signals: [
+          "in `failure.history` it alternates between passing and failing without a consistent pattern",
           "the test passed on a retry",
           "timeouts waiting for an element or response that eventually arrives",
           "different errors or durations across attempts",
@@ -68,7 +71,23 @@ export interface Classification {
 
 // 2) O state: factos estruturados com nomes claros. Só factos observados,
 //    sem a nossa opinião (não passamos o rótulo "flaky" do Playwright, só o que aconteceu).
-function buildState(t: FailedTest) {
+//    O histórico é o sinal mais forte de flakiness: numa única execução, um timeout
+//    parece-se com um bug; ao longo de várias execuções, "passa às vezes" fica evidente.
+function buildState(t: FailedTest, history: HistoryEntry[]) {
+  const recent = history.slice(-10);
+  const historyState: JsonValue =
+    history.length === 0
+      ? { previous_runs: 0, note: "No previous runs recorded for this test." }
+      : {
+          previous_runs: history.length,
+          passed: history.filter((h) => h.status === "passed").length,
+          failed: history.filter((h) => h.status === "failed").length,
+          recent_runs_oldest_first: recent.map((h) => ({
+            status: h.status,
+            duration_ms: h.durationMs,
+            error_first_line: h.error ?? null,
+          })),
+        };
   const failedAttempts = t.attempts.filter((a) => a.status !== "passed").length;
   return {
     failure: {
@@ -86,6 +105,7 @@ function buildState(t: FailedTest) {
       })),
       error_message: t.errorMessage,
       stack_excerpt: t.stackExcerpt,
+      history: historyState,
     },
   };
 }
@@ -95,11 +115,12 @@ export function createJevClassifier(apiKey: string, confidenceThreshold: number)
   // Modelo: TYPESAFE_DEFAULT_MODEL, senão "jev-latest" (default do SDK).
   const client = new TypeSafeClient({ apiKey, timeout: 20_000 });
 
-  return async function classify(t: FailedTest): Promise<Classification> {
+  /** `history`: execuções ANTERIORES deste teste (sem a atual). */
+  return async function classify(t: FailedTest, history: HistoryEntry[]): Promise<Classification> {
     try {
       // 3) A chamada. Uma pergunta, uma falha. As respostas vêm tipadas a partir de `triageQuestions`.
       const response = await client.systemOne({
-        state: buildState(t),
+        state: buildState(t, history),
         questions: triageQuestions,
       });
       const answer = response.answers.category;
