@@ -66,6 +66,8 @@ export interface Classification {
   confidence?: number;
   probabilities?: Record<Category, number>;
   model?: string;
+  /** O state exatamente como foi enviado ao Jev (anexado ao Allure). */
+  state?: JsonValue;
   error?: string;
 }
 
@@ -119,8 +121,9 @@ export function createJevClassifier(apiKey: string, confidenceThreshold: number)
   return async function classify(t: FailedTest, history: HistoryEntry[]): Promise<Classification> {
     try {
       // 3) A chamada. Uma pergunta, uma falha. As respostas vêm tipadas a partir de `triageQuestions`.
+      const state = buildState(t, history);
       const response = await client.systemOne({
-        state: buildState(t, history),
+        state,
         questions: triageQuestions,
       });
       const answer = response.answers.category;
@@ -135,6 +138,7 @@ export function createJevClassifier(apiKey: string, confidenceThreshold: number)
         confidence: answer.confidence,
         probabilities: { ...answer.probabilities },
         model: response.model,
+        state,
       };
     } catch (err) {
       // Falha da API (rede, 429 após retries, chave inválida...): não bloqueia o pipeline.

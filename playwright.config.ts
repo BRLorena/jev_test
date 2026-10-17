@@ -17,6 +17,8 @@ export default defineConfig({
     ["html", { open: "never", outputFolder: "playwright-report" }],
     // A triagem lê este ficheiro.
     ["json", { outputFile: "test-results/results.json" }],
+    // Resultados Allure 3 (um JSON por teste); a triagem acrescenta-lhes a análise do Jev.
+    ["allure-playwright", { resultsDir: "allure-results" }],
   ],
   use: {
     baseURL: `http://localhost:${PORT}`,

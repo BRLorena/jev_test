@@ -92,7 +92,8 @@ ${result.model ? `<small>modelo: ${esc(result.model)}</small>` : ""}
 <main>
 <h1>🧪 Triagem de falhas Playwright (Jev)</h1>
 <p>
-  <a href="playwright-report/index.html">Relatório HTML do Playwright →</a>
+  <a href="allure/index.html">Relatório Allure →</a>
+  · <a href="playwright-report/index.html">Relatório HTML do Playwright →</a>
   ${opts.runUrl ? ` · <a href="${esc(opts.runUrl)}">Execução no GitHub Actions</a>` : ""}
   · <small>gerado em ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC</small>
 </p>

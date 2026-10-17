@@ -4,6 +4,7 @@
  *   1. lê test-results/results.json e o histórico de execuções anteriores
  *   2. classifica cada falha com o Jev (ou `unclassified` sem chave), incluindo o histórico no state
  *   3. escreve triage-output/triage-report.md, index.html (GitHub Pages) e triage-results.json (+ GITHUB_STEP_SUMMARY)
+ *      acrescenta a análise aos resultados Allure (labels, descrição e anexo)
  *      e atualiza o histórico (também copiado para triage-output/history.json, publicado no Pages)
  *   4. exit code 1 só se houver falhas com veredicto em TRIAGE_FAIL_ON (default: bug)
  */
@@ -16,13 +17,14 @@ import { appendRun, loadHistory, saveHistory } from "./history.ts";
 import { createJevClassifier } from "./jev-classifier.ts";
 import { renderMarkdown, type TriageItem } from "./markdown.ts";
 import { renderHtml } from "./html.ts";
+import { enrichAllureResults } from "./allure.ts";
 
 if (!existsSync(config.reportPath)) {
   console.error(`Relatório não encontrado: ${config.reportPath}. Corre primeiro "npm test".`);
   process.exit(2);
 }
 
-const { failures, runs } = await readReport(config.reportPath);
+const { failures, runs, startTime } = await readReport(config.reportPath);
 const history = await loadHistory(config.historyPath);
 console.log(`Falhas encontradas: ${failures.length} · testes com histórico: ${Object.keys(history.tests).length}`);
 
@@ -55,8 +57,13 @@ const markdown = renderMarkdown(items, {
 
 await mkdir(config.outputDir, { recursive: true });
 
+const enriched = await enrichAllureResults(config.allureResultsDir, items);
+if (enriched > 0) console.log(`Allure: ${enriched} resultado(s) enriquecido(s) com a análise do Jev.`);
+
 // O histórico só é atualizado depois de classificar: o Jev vê apenas execuções anteriores.
-const updated = appendRun(history, runs, config.runId, config.historySize);
+// Correr a triagem duas vezes sobre o mesmo relatório não duplica entradas: o id é o mesmo.
+const runId = config.runId ?? `local-${startTime ?? new Date().toISOString()}`;
+const updated = appendRun(history, runs, runId, config.historySize);
 await saveHistory(config.historyPath, updated);
 await saveHistory(join(config.outputDir, "history.json"), updated);
 

@@ -14,7 +14,9 @@ Projeto pequeno, feito para aprender, que junta uma suite **Playwright + TypeScr
   | `o stock dos produtos é apresentado` | 🔌 **environment** | `/api/inventory` devolve 503 quando `FAKE_ENV_DOWN=1` |
 
 - Triagem com o Jev (`triage/`): lê o relatório JSON do Playwright e faz uma pergunta `choice` por falha. Se o `confidence` ficar abaixo de um limiar, a falha passa a `needs_review`.
-- Relatório Markdown em `triage-output/triage-report.md`, também escrito no **GitHub Step Summary**.
+- **Histórico por teste**: o Jev recebe os resultados das execuções anteriores do mesmo teste. É o que lhe permite distinguir "falha sempre" (bug) de "falha às vezes" (flaky).
+- **Allure 3** com a análise do Jev: categorias por veredicto, labels `jev_verdict`/`jev_confidence`, um resumo na descrição e um anexo com o state enviado ao Jev.
+- Relatório Markdown em `triage-output/triage-report.md`, também escrito no **GitHub Step Summary**, e tudo publicado no **GitHub Pages**.
 - Fallback: sem `TYPESAFE_API_KEY` não há chamadas à API, tudo fica `unclassified` e o pipeline continua.
 
 ## Onde o Jev entra no fluxo
@@ -22,6 +24,7 @@ Projeto pequeno, feito para aprender, que junta uma suite **Playwright + TypeScr
 ```mermaid
 flowchart LR
     A[npm test<br/>Playwright + Chromium] -->|test-results/results.json| B[report-parser.ts<br/>extrai falhas:<br/>nome, erro, stack, tentativas]
+    P[(history.json<br/>execuções anteriores)] --> E
     B --> C{TYPESAFE_API_KEY?}
     C -- não --> D[unclassified<br/>sem chamadas à API]
     C -- sim --> E[★ jev-classifier.ts<br/>client.systemOne<br/>state = factos da falha<br/>choice: bug / flaky / environment]
@@ -31,6 +34,9 @@ flowchart LR
     D --> I[markdown.ts<br/>triage-report.md<br/>+ GITHUB_STEP_SUMMARY]
     G --> I
     H --> I
+    G --> X[allure.ts<br/>labels + descrição + anexo<br/>em allure-results]
+    H --> X
+    X --> Y[Allure 3<br/>categorias por veredicto]
     I --> J{veredicto em<br/>TRIAGE_FAIL_ON?}
     J -- sim --> K[❌ job falha]
     J -- não --> L[✅ job passa<br/>com avisos]
@@ -39,11 +45,44 @@ flowchart LR
 O ficheiro mais importante para aprender é [`triage/jev-classifier.ts`](triage/jev-classifier.ts), que está comentado passo a passo:
 
 1. **A pergunta**: uma `choice` com três opções. Cada opção é descrita com `what`, `signals` e `not_for`, porque as categorias confundem-se com facilidade.
-2. **O state**: só factos observados, como o título, a mensagem de erro, um excerto do stack e a duração de cada tentativa. Os testes correm **sem retries** (`retries: 0`), por isso o Jev decide a partir de uma única tentativa. Se voltares a ativar os retries, o state passa a incluir `passed_on_retry` e `failed_attempts`, que são um sinal forte de flakiness.
+2. **O state**: só factos observados, como o título, a mensagem de erro, um excerto do stack e a duração de cada tentativa. Inclui também `failure.history`, com os resultados das últimas execuções do mesmo teste. Os testes correm **sem retries** (`retries: 0`), por isso o histórico é o que separa um bug de um teste flaky (ver abaixo).
 3. **A chamada**: `client.systemOne({ state, questions })`. A resposta vem tipada, com `choice`, `probabilities` e `confidence`.
 4. **A política fica no nosso código**: se `confidence < limiar`, o veredicto é `needs_review`. O que faz o job falhar é decidido por `TRIAGE_FAIL_ON`.
 
 O Jev não gera texto nem explicações. Devolve uma decisão estruturada e calibrada, e o código decide o que fazer com ela.
+
+### Porque é que o histórico importa
+
+Numa única execução, o teste flaky falha assim: "esperei 1 s e o texto nunca apareceu". Sem mais contexto, isto parece um bug. Foi o que aconteceu antes de haver histórico:
+
+| Teste flaky | State enviado ao Jev | Resultado |
+|---|---|---|
+| sem histórico | só o erro desta execução | 🐞 bug (95%) |
+| com histórico | erro + `❌❌❌❌❌✅✅✅✅` | 🎲 flaky (98%) |
+
+O código não mudou a pergunta, só deu mais evidência ao Jev. Melhorar o **state** costuma valer mais do que afinar a pergunta.
+
+- O histórico fica em [`triage/history.ts`](triage/history.ts): até 20 execuções por teste (`TRIAGE_HISTORY_SIZE`), incluindo as que passaram.
+- Localmente vive em `.triage-history/history.json`. No CI é descarregado do GitHub Pages antes da triagem e republicado no deploy seguinte.
+- O Jev vê só as execuções **anteriores**. A atual é acrescentada ao histórico depois da classificação.
+- Nas primeiras execuções não há histórico, por isso a classificação do flaky depende da sorte. O histórico só acumula em push para `master` (os PRs leem-no, mas não o publicam).
+
+## Allure 3
+
+A triagem acrescenta a análise do Jev aos resultados do [`allure-playwright`](https://allurereport.org/docs/playwright/) ([`triage/allure.ts`](triage/allure.ts)):
+
+- **Labels** `jev_verdict`, `jev_confidence` e uma tag `jev:<veredicto>`. Podes filtrar por eles no relatório.
+- **Categorias** definidas em [`allurerc.mjs`](allurerc.mjs), uma por veredicto (🐞 Bug, 🎲 Flaky, 🔌 Environment, 👀 Needs review), através de matchers sobre o label `jev_verdict`.
+- **Descrição** do teste com o veredicto e as probabilidades.
+- **Anexo "Jev triage"** com o state exato que foi enviado ao Jev e a resposta. É a melhor forma de perceber porque é que o Jev decidiu o que decidiu.
+
+O Allure guarda o seu próprio histórico (`.allure-history/history.jsonl`) para os trends e para a deteção de flaky do próprio Allure. No CI, esse ficheiro é persistido no Pages da mesma forma que o histórico da triagem.
+
+```bash
+npm run test:triage   # testes + triagem (enriquece allure-results)
+npm run allure        # gera allure-report/
+npm run allure:open   # serve o relatório no browser
+```
 
 ## Correr localmente
 
@@ -84,6 +123,8 @@ O exit code passa a ser 1 se alguma falha for classificada como `bug`.
 | `npm test` | Corre a suite Playwright (apenas Chromium) |
 | `npm run triage` | Corre só a triagem sobre `test-results/results.json` |
 | `npm run test:triage` | Corre os testes e depois a triagem, mesmo que haja testes a falhar |
+| `npm run allure` | Gera o relatório Allure 3 em `allure-report/` (corre depois da triagem) |
+| `npm run allure:open` | Serve o relatório Allure no browser |
 | `npm run typecheck` | `tsc` sem gerar ficheiros |
 | `npm start` | Arranca a app em http://localhost:3000 para a explorares à mão |
 
@@ -95,6 +136,8 @@ O exit code passa a ser 1 se alguma falha for classificada como `bug`.
 | `TYPESAFE_DEFAULT_MODEL` | `jev-latest` | Modelo. Fixa uma versão (ex.: `jev-1.13.0`) depois de afinares o limiar |
 | `TRIAGE_CONFIDENCE_THRESHOLD` | `0.6` | Abaixo deste valor, a falha fica `needs_review` |
 | `TRIAGE_FAIL_ON` | `bug` | Veredictos que fazem o job falhar, separados por vírgula (ex.: `bug,needs_review`) |
+| `TRIAGE_HISTORY_PATH` | `.triage-history/history.json` | Onde fica o histórico de execuções |
+| `TRIAGE_HISTORY_SIZE` | `20` | Quantas execuções guardar por teste |
 | `FAKE_ENV_DOWN` | – | `1` faz `/api/inventory` devolver 503 |
 | `FLAKY_MAX_DELAY_MS` | `2000` | Atraso máximo de `/api/report`. Quanto maior, mais vezes o teste flaky falha |
 
@@ -106,9 +149,11 @@ O workflow [`.github/workflows/e2e-triage.yml`](.github/workflows/e2e-triage.yml
 
 1. `npm ci` e instalação do Chromium.
 2. `npm test` com `continue-on-error`: os testes vermelhos não decidem sozinhos o resultado do job.
-3. `npm run triage` com `if: always()`. Este passo decide o resultado: falha só se houver veredictos em `TRIAGE_FAIL_ON`. Os restantes aparecem como avisos no summary e como anotações.
-4. Publica como artifacts o `playwright-report` (HTML) e o `triage-results` (Markdown, JSON e o relatório JSON do Playwright).
-5. Em push para `master`, publica no **GitHub Pages** a página da triagem (`index.html`) e o relatório HTML do Playwright (`/playwright-report/`). A página é publicada mesmo quando o job falha por causa de um bug.
+3. Descarrega do GitHub Pages o histórico da triagem (`history.json`) e o do Allure (`allure-history.jsonl`).
+4. `npm run triage` com `if: always()`. Este passo decide o resultado: falha só se houver veredictos em `TRIAGE_FAIL_ON`. Os restantes aparecem como avisos no summary e como anotações.
+5. `npm run allure` gera o relatório Allure 3, já com a análise do Jev.
+6. Publica como artifacts o `playwright-report`, o `allure-report` e o `triage-results` (Markdown, JSON e o relatório JSON do Playwright).
+7. Em push para `master`, publica no **GitHub Pages** a página da triagem (`/`), o Allure (`/allure/`), o relatório do Playwright (`/playwright-report/`) e os dois históricos. A página é publicada mesmo quando o job falha por causa de um bug.
 
 Página: **https://brlorena.github.io/jev_test/**
 
@@ -131,10 +176,13 @@ A app corre dentro do runner, por isso não há alojamento. Em repositórios pú
 ```
 app/            servidor Node (http nativo) + página HTML
 tests/          testes Playwright (shop, report = flaky, inventory = environment)
+allurerc.mjs    configuração do Allure 3 (categorias por veredicto do Jev, histórico)
 triage/
   config.ts           variáveis de ambiente
   report-parser.ts    lê o relatório JSON do Playwright
+  history.ts          histórico de execuções por teste
   jev-classifier.ts   ★ integração com o Jev
+  allure.ts           acrescenta a análise do Jev aos resultados Allure
   markdown.ts         relatório Markdown
   html.ts             página HTML do GitHub Pages
   triage.ts           ponto de entrada + exit code
@@ -144,4 +192,4 @@ triage/
 
 - Os limiares (`0.6`) são um ponto de partida. A documentação da TypeSafe recomenda afiná-los com dados reais. Guarda os `triage-results.json` de várias execuções e compara-os com a classificação feita por uma pessoa.
 - `confidence` mede o quão concentradas estão as probabilidades. Não é uma garantia de que a resposta está certa. Ver [Confidence](https://docs.typesafe.ai/confidence).
-- Ideias para evoluir: incluir no state o excerto do código do teste, ou acrescentar uma pergunta `noul` ("a falha está no código do teste e não na app?") no mesmo pedido, sem custo extra de latência ([fan-out](https://docs.typesafe.ai/patterns/fan-out)).
+- Ideias para evoluir: registar no state os tempos de resposta da rede durante o teste, incluir o excerto do código do teste, ou acrescentar uma pergunta `noul` ("a falha está no código do teste e não na app?") no mesmo pedido, sem custo extra de latência ([fan-out](https://docs.typesafe.ai/patterns/fan-out)).

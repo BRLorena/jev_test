@@ -16,6 +16,8 @@ function list(value: string | undefined, fallback: string): string[] {
 export const config = {
   reportPath: process.env.PLAYWRIGHT_JSON_REPORT ?? "test-results/results.json",
   outputDir: process.env.TRIAGE_OUTPUT_DIR ?? "triage-output",
+  /** Resultados Allure a enriquecer com a análise do Jev. */
+  allureResultsDir: process.env.ALLURE_RESULTS_DIR ?? "allure-results",
 
   /** Sem chave → fallback `unclassified`, sem chamadas à API. */
   apiKey: process.env.TYPESAFE_API_KEY?.trim() || undefined,
@@ -30,8 +32,8 @@ export const config = {
   historyPath: process.env.TRIAGE_HISTORY_PATH ?? ".triage-history/history.json",
   /** Quantas execuções guardar por teste. */
   historySize: Number(process.env.TRIAGE_HISTORY_SIZE ?? 20),
-  /** Identificador desta execução no histórico. */
-  runId: process.env.GITHUB_RUN_ID ?? `local-${new Date().toISOString()}`,
+  /** Identificador desta execução no histórico (localmente: hora de início do relatório). */
+  runId: process.env.GITHUB_RUN_ID,
 
   /** Pedidos ao Jev em paralelo. */
   concurrency: Number(process.env.TRIAGE_CONCURRENCY ?? 4),

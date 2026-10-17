@@ -6,3 +6,6 @@ blob-report/
 triage-output/
 .DS_Store
 .triage-history/
+allure-results/
+allure-report/
+.allure-history/

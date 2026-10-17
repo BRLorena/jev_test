@@ -39,7 +39,7 @@ interface JsonResult { retry: number; status: string; duration: number; errors?:
 interface JsonTest { projectName: string; status: string; results: JsonResult[] }
 interface JsonSpec { title: string; file: string; line: number; tests: JsonTest[] }
 interface JsonSuite { title: string; file?: string; specs?: JsonSpec[]; suites?: JsonSuite[] }
-interface JsonReport { suites: JsonSuite[] }
+interface JsonReport { suites: JsonSuite[]; stats?: { startTime?: string } }
 
 const ANSI = /\u001b\[[0-9;]*m/g;
 const clean = (s = "") => s.replace(ANSI, "").trim();
@@ -109,10 +109,12 @@ function collect(suite: JsonSuite, titlePath: string[], out: FailedTest[], runs:
 }
 
 /** `failures`: testes a classificar. `runs`: todos os testes, para o histórico. */
-export async function readReport(reportPath: string): Promise<{ failures: FailedTest[]; runs: TestRun[] }> {
+export async function readReport(
+  reportPath: string,
+): Promise<{ failures: FailedTest[]; runs: TestRun[]; startTime?: string }> {
   const report = JSON.parse(await readFile(reportPath, "utf8")) as JsonReport;
   const failures: FailedTest[] = [];
   const runs: TestRun[] = [];
   for (const suite of report.suites) collect(suite, [], failures, runs);
-  return { failures, runs };
+  return { failures, runs, startTime: report.stats?.startTime };
 }
