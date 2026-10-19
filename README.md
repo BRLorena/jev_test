@@ -1,232 +1,234 @@
-# Playwright + Jev: triagem automática de testes falhados
+# Playwright + Jev: automatic triage of failed tests
 
-Projeto pequeno, feito para aprender, que junta suites **Playwright + TypeScript** com o **Jev**, o modelo System One da [TypeSafe](https://docs.typesafe.ai). Depois de cada execução, o Jev analisa cada teste falhado e responde a três perguntas no mesmo pedido:
+A small project that combines **Playwright + TypeScript** test suites with **Jev**, the System One model from [TypeSafe](https://docs.typesafe.ai). After each run, Jev analyses every failed test and answers three questions in a single request:
 
-- **qual a causa?** `bug`, `flaky` ou `environment`, com a probabilidade de cada opção (pergunta `choice`);
-- **o defeito está no código do teste e não na app?** (pergunta `noul`);
-- **a falha deve-se a lentidão?** (pergunta `noul`).
+- **What is the cause?** `bug`, `flaky` or `environment`, with a probability for each option (a `choice` question).
+- **Is the defect in the test code rather than in the app?** (a `noul` question)
+- **Is the failure caused by slowness?** (a `noul` question)
 
-O pipeline só falha quando existe um **bug** real na app.
+The pipeline only fails when there is a real **bug** in the app.
 
-Relatórios publicados:
-- **Allure com as duas suites:** https://brlorena.github.io/jev_test/allure/
-- **Triagem da suite local:** https://brlorena.github.io/jev_test/
-- **Triagem do saucedemo:** https://brlorena.github.io/jev_test/saucedemo/
+Published reports:
+- **Allure report with both suites:** https://brlorena.github.io/jev_test/allure/
+- **Local suite triage:** https://brlorena.github.io/jev_test/
+- **Saucedemo triage:** https://brlorena.github.io/jev_test/saucedemo/
 
-## As duas suites
+## The two suites
 
-### `local`: uma mini loja em `app/`
+> Test titles in the code are in Portuguese. The tables below use English descriptions.
 
-Servida pelo `webServer` do Playwright, sem depender de sites externos. Tem 8 testes, 3 dos quais falham de propósito:
+### `local`: a mini shop in `app/`
 
-| Teste | Tipo de falha | Como é provocada |
+Served by Playwright's `webServer`, with no dependency on external sites. It has 8 tests, 3 of which fail on purpose:
+
+| Test | Failure type | How it is triggered |
 |---|---|---|
-| `desconto de 10% é aplicado ao total` | 🐞 bug | A app aplica o desconto duas vezes (`app/public/index.html`) |
-| `o relatório carrega em menos de 1 segundo` | 🎲 flaky | `/api/report` atrasa entre 0 e `FLAKY_MAX_DELAY_MS`, mas o teste só espera 1 s |
-| `o stock dos produtos é apresentado` | 🔌 environment | `/api/inventory` devolve 503 quando `FAKE_ENV_DOWN=1` |
+| 10% discount is applied to the total | 🐞 bug | The app applies the discount twice (`app/public/index.html`) |
+| The report loads in under 1 second | 🎲 flaky | `/api/report` waits a random 0 to `FLAKY_MAX_DELAY_MS`, but the test only waits 1 s |
+| Product stock is displayed | 🔌 environment | `/api/inventory` returns 503 when `FAKE_ENV_DOWN=1` |
 
 ### `saucedemo`: https://www.saucedemo.com
 
-Um site público feito para praticar automação. Cada utilizador de demonstração tem defeitos diferentes, todos confirmados ao explorar o site. Tem 13 testes, 9 dos quais falham de propósito:
+A public site built for practising test automation. Each demo user has different defects, all confirmed by exploring the site. It has 13 tests, 9 of which fail on purpose:
 
-| Teste | Utilizador | Falha esperada |
+| Test | User | Expected failure |
 |---|---|---|
-| login válido, utilizador bloqueado, password errada, checkout com total $28.06 | standard / locked_out | ✅ passam |
-| os produtos têm imagens diferentes | problem_user | 🐞 todas as imagens são iguais |
-| clicar num produto abre esse produto | problem_user | 🐞 o Backpack abre o Fleece Jacket |
-| o checkout aceita nome e apelido | problem_user | 🐞 o "Last Name" escreve no "First Name" |
-| ordenar por preço | error_user | 🐞 alerta "Sorting is broken!" e a lista não muda |
-| remover do carrinho atualiza o contador | error_user | 🐞 o botão "Remove" não faz nada |
-| o preço da lista é igual ao do detalhe | visual_user | 🐞 os preços da lista são aleatórios |
-| checkout completo dentro de 3 s | performance_glitch_user | 🐢 funciona, mas demora cerca de 6 s |
-| adicionar o backpack ao carrinho | standard_user | 🧪 **defeito do teste**: seletor errado de propósito |
-| o inventário carrega | standard_user | 🔌 com `SAUCE_ENV_DOWN=1` a rede é cortada |
+| Valid login, locked-out user, wrong password, checkout with a $28.06 total | standard / locked_out | ✅ pass |
+| Products have different images | problem_user | 🐞 all images are the same |
+| Clicking a product opens that product | problem_user | 🐞 the Backpack opens the Fleece Jacket |
+| Checkout accepts first and last name | problem_user | 🐞 typing in "Last Name" writes into "First Name" |
+| Sort by price | error_user | 🐞 "Sorting is broken!" alert and the list does not change |
+| Removing from the cart updates the counter | error_user | 🐞 the "Remove" button does nothing |
+| List price matches the detail page price | visual_user | 🐞 list prices are random |
+| Full checkout within 3 s | performance_glitch_user | 🐢 works, but takes about 6 s |
+| Add the backpack to the cart | standard_user | 🧪 **test code defect**: deliberately wrong selector |
+| The inventory loads | standard_user | 🔌 with `SAUCE_ENV_DOWN=1` the network is cut off |
 
-## Onde o Jev entra no fluxo
+## Where Jev fits in the flow
 
 ```mermaid
 flowchart LR
-    A[Playwright<br/>suite local ou saucedemo] -->|reports/&lt;suite&gt;/results.json| B[report-parser.ts<br/>erro, stack, código do teste,<br/>snapshot da página]
-    P[(histórico<br/>execuções anteriores)] --> E
+    A[Playwright<br/>local or saucedemo suite] -->|reports/&lt;suite&gt;/results.json| B[report-parser.ts<br/>error, stack, test code,<br/>page snapshot]
+    P[(history<br/>previous runs)] --> E
     B --> C{TYPESAFE_API_KEY?}
-    C -- não --> D[unclassified<br/>sem chamadas à API]
-    C -- sim --> E[★ jev-classifier.ts<br/>1 pedido, 3 perguntas:<br/>choice bug/flaky/environment<br/>noul defeito do teste?<br/>noul lentidão?]
-    E --> F{política no código}
+    C -- no --> D[unclassified<br/>no API calls]
+    C -- yes --> E[★ jev-classifier.ts<br/>1 request, 3 questions:<br/>choice bug/flaky/environment<br/>noul test code defect?<br/>noul slowness?]
+    E --> F{policy in our code}
     F --> G[bug / flaky / environment<br/>/ needs_review]
-    D --> I[Markdown + Step Summary<br/>+ página HTML]
+    D --> I[Markdown + Step Summary<br/>+ HTML page]
     G --> I
-    G --> X[allure.ts<br/>labels, descrição, anexo]
-    X --> Y[Allure 3<br/>categorias por veredicto]
-    I --> J{veredicto em<br/>TRIAGE_FAIL_ON?}
-    J -- sim --> K[❌ job falha]
-    J -- não --> L[✅ job passa<br/>com avisos]
+    G --> X[allure.ts<br/>labels, description, attachment]
+    X --> Y[Allure 3<br/>categories per verdict]
+    I --> J{verdict in<br/>TRIAGE_FAIL_ON?}
+    J -- yes --> K[❌ job fails]
+    J -- no --> L[✅ job passes<br/>with warnings]
 ```
 
-O ficheiro mais importante para aprender é [`triage/jev-classifier.ts`](triage/jev-classifier.ts), que está comentado passo a passo:
+The key file is [`triage/jev-classifier.ts`](triage/jev-classifier.ts), which is commented step by step:
 
-1. **As perguntas** são três, enviadas no mesmo pedido. Correm em paralelo sobre o mesmo state e não veem as respostas umas das outras ([fan-out](https://docs.typesafe.ai/patterns/fan-out)). A latência quase não muda; só sobem alguns tokens.
-   - `category` é uma `choice`. Cada opção é descrita com `what`, `signals` e `not_for`, porque as categorias confundem-se com facilidade.
-   - `test_code_defect` e `slowness` são `noul`. Uma `noul` devolve só a probabilidade de "sim" e não tem `confidence`: um valor perto de 0.5 significa "não sei". São `noul` e não opções extra da `choice` porque podem ser verdadeiras ao mesmo tempo que a categoria. Um bug no teste continua a ser um "bug".
-2. **O state** contém só factos observados: erro, stack, histórico de execuções, **código do teste**, **lista de `data-test` da página** e **snapshot da página** no momento da falha.
-3. **A chamada** é `client.systemOne({ state, questions })`, e as respostas vêm tipadas.
-4. **A política fica no nosso código:**
-   - se `confidence < TRIAGE_CONFIDENCE_THRESHOLD`, o veredicto é `needs_review`;
-   - se o veredicto for `bug` e `test_code_defect ≥ TRIAGE_TEST_DEFECT_THRESHOLD`, também é `needs_review`, para um teste mal escrito não bloquear o pipeline como se fosse um bug da app;
-   - `slowness` é só informativa: aparece nos relatórios e como tag no Allure.
+1. **The questions**: three of them, sent in the same request. They run in parallel over the same state and do not see each other's answers ([fan-out](https://docs.typesafe.ai/patterns/fan-out)). Latency barely changes; only a few extra tokens are used.
+   - `category` is a `choice`. Each option is described with `what`, `signals` and `not_for`, because the categories are easy to confuse.
+   - `test_code_defect` and `slowness` are `noul`s. A `noul` returns only the probability of "yes" and has no `confidence`: a value close to 0.5 means "I don't know". They are `noul`s rather than extra `choice` options because they can be true at the same time as the category. A bug in the test is still a "bug".
+2. **The state** contains only observed facts: error, stack, run history, **test code**, **the list of `data-test` attributes on the page** and a **page snapshot** at the moment of failure.
+3. **The call** is `client.systemOne({ state, questions })`, and the answers come back typed.
+4. **The policy lives in our code:**
+   - if `confidence < TRIAGE_CONFIDENCE_THRESHOLD`, the verdict is `needs_review`;
+   - if the verdict is `bug` and `test_code_defect ≥ TRIAGE_TEST_DEFECT_THRESHOLD`, it is also `needs_review`, so a badly written test does not block the pipeline as if it were an app bug;
+   - `slowness` is informational only: it shows up in the reports and as a tag in Allure.
 
-## O que aprendemos sobre o state
+## What we learned about the state
 
-Em todos os casos abaixo, a melhoria veio de dar **mais evidência** ao Jev, não de mudar a pergunta.
+In every case below, the improvement came from giving Jev **more evidence**, not from changing the question.
 
-### 1. O histórico separa um bug de um teste flaky
+### 1. History separates a bug from a flaky test
 
-Os testes correm sem retries. Numa única execução, o teste flaky falha assim: "esperei 1 s e o texto nunca apareceu", o que parece um bug.
+Tests run without retries. In a single run, the flaky test fails with "waited 1 s and the text never appeared", which looks like a bug.
 
-| Teste flaky | State | Resultado |
+| Flaky test | State | Result |
 |---|---|---|
-| sem histórico | só o erro desta execução | 🐞 bug (95%) |
-| com histórico | erro + `❌❌❌❌❌✅✅✅✅` | 🎲 flaky (98%) |
+| no history | only this run's error | 🐞 bug (95%) |
+| with history | error + `❌❌❌❌❌✅✅✅✅` | 🎲 flaky (98%) |
 
-O histórico está em [`triage/history.ts`](triage/history.ts) e guarda até 20 execuções por teste, incluindo as que passaram. O Jev vê só as execuções **anteriores**.
+History lives in [`triage/history.ts`](triage/history.ts) and stores up to 20 runs per test, including passing ones. Jev only sees **previous** runs.
 
-### 2. Para julgar o teste, o Jev precisa de ver o teste e a página
+### 2. To judge the test, Jev needs to see the test and the page
 
-O seletor errado (`add-to-cart-backpack` em vez de `add-to-cart-sauce-labs-backpack`) dá um timeout. Só com o erro, não se sabe se o botão falta na página (bug da app) ou se o seletor está errado (bug do teste).
+The wrong selector (`add-to-cart-backpack` instead of `add-to-cart-sauce-labs-backpack`) causes a timeout. From the error alone, you can't tell whether the button is missing from the page (app bug) or the selector is wrong (test bug).
 
-| State | P(defeito do teste) |
+| State | P(test code defect) |
 |---|---|
-| erro + código do teste | 0.34 |
-| + `data-test` presentes na página + snapshot | **0.92** |
+| error + test code | 0.34 |
+| + `data-test` attributes on the page + snapshot | **0.92** |
 
-O caso contrário também funciona. No `problem_user`, o teste preenche o apelido e a app responde "Last Name is required". Parece um teste mal escrito, mas o Jev deu **0.29**: o defeito é da app.
+It works the other way round too. With `problem_user`, the test fills in the last name and the app replies "Last Name is required". It looks like a badly written test, but Jev returned **0.29**: the defect is in the app.
 
-- O código do teste é enviado **sem comentários**. Os comentários dos nossos testes dizem "BUG" ou "DEFEITO DO TESTE", e enviá-los seria dar a resposta ao Jev.
-- A lista de `data-test` vem de uma fixture automática em [`tests/saucedemo/support.ts`](tests/saucedemo/support.ts). O snapshot vem do anexo `error-context` que o Playwright já cria para cada falha.
+- The test code is sent **without comments**. Our test comments say "BUG" or "DEFEITO DO TESTE" (test defect), and sending them would hand Jev the answer.
+- The `data-test` list comes from an automatic fixture in [`tests/saucedemo/support.ts`](tests/saucedemo/support.ts). The snapshot comes from the `error-context` attachment that Playwright already creates for every failure.
 
-### 3. A lentidão é uma dimensão própria
+### 3. Slowness is its own dimension
 
-O `performance_glitch_user` funciona, mas é lento. Com só três categorias, o Jev teria de o encaixar à força em bug ou flaky. A `noul` `slowness` deu **0.94** nesse teste e ficou baixa em todos os outros.
+`performance_glitch_user` works, but it is slow. With only three categories, Jev would have to force it into bug or flaky. The `slowness` `noul` returned **0.94** for that test and stayed low for all the others.
 
 ## Allure 3
 
-Há **um único relatório Allure para as duas suites**. Cada suite é um [environment](https://allurereport.org/docs/environments/) do Allure 3, que se escolhe no seletor no topo do relatório, ou em "All" para ver tudo junto.
+There is **a single Allure report for both suites**. Each suite is an Allure 3 [environment](https://allurereport.org/docs/environments/), which you pick from the selector at the top of the report, or choose "All" to see everything together.
 
-- A configuração partilhada do Playwright marca cada resultado com o label `suite_name`.
-- O [`allurerc.mjs`](allurerc.mjs) associa esse label a um ambiente: "App local" ou "Saucedemo".
-- `npm run allure` gera o relatório a partir de `reports/*/allure-results`, ou seja, das duas suites de uma vez.
+- The shared Playwright config tags every result with a `suite_name` label.
+- [`allurerc.mjs`](allurerc.mjs) maps that label to an environment: "App local" or "Saucedemo".
+- `npm run allure` builds the report from `reports/*/allure-results`, i.e. from both suites at once.
 
-A triagem acrescenta a análise do Jev aos resultados do [`allure-playwright`](https://allurereport.org/docs/playwright/) ([`triage/allure.ts`](triage/allure.ts)):
+Triage adds Jev's analysis to the [`allure-playwright`](https://allurereport.org/docs/playwright/) results ([`triage/allure.ts`](triage/allure.ts)):
 
-- **Labels**: `jev_verdict`, `jev_confidence`, `jev_test_code_defect` e `jev_slowness`.
-- **Tags**: `jev:<veredicto>`, mais `jev:test-code-defect` e `jev:slow` quando passam o limiar.
-- **Categorias** em [`allurerc.mjs`](allurerc.mjs): uma por veredicto (🐞 Bug, 🎲 Flaky, 🔌 Environment, 👀 Needs review).
-- **Descrição** com o veredicto, as probabilidades e as duas `noul`.
-- **Anexo "Jev triage"** com o state exato enviado ao Jev e a resposta. É a melhor forma de perceber cada decisão.
+- **Labels**: `jev_verdict`, `jev_confidence`, `jev_test_code_defect` and `jev_slowness`.
+- **Tags**: `jev:<verdict>`, plus `jev:test-code-defect` and `jev:slow` when they cross the threshold.
+- **Categories** in [`allurerc.mjs`](allurerc.mjs): one per verdict (🐞 Bug, 🎲 Flaky, 🔌 Environment, 👀 Needs review).
+- **Description** with the verdict, the probabilities and both `noul`s.
+- **"Jev triage" attachment** with the exact state sent to Jev and its response. This is the best way to understand each decision.
 
-O Allure guarda também o seu próprio histórico, para os trends e para a deteção de flaky do próprio Allure.
+Allure also keeps its own history, for trends and for Allure's own flaky detection.
 
-## Correr localmente
+## Running locally
 
-Requisitos: Node 22.15 ou superior (recomendado: 24 LTS).
+Requirements: Node 22.15 or later (recommended: 24 LTS).
 
 ```bash
 npm ci
 npx playwright install chromium
-cp .env.example .env        # põe a TYPESAFE_API_KEY no .env (ou deixa vazia para o fallback)
+cp .env.example .env        # put your TYPESAFE_API_KEY in .env (or leave it empty for the fallback)
 ```
 
-| Script | O que faz |
+| Script | What it does |
 |---|---|
-| `npm test` / `npm run test:saucedemo` | Corre a suite (apenas Chromium) |
-| `npm run triage` / `npm run triage:saucedemo` | Triagem sobre o último relatório da suite |
-| `npm run test:triage` / `npm run test:triage:saucedemo` | Testes e triagem, mesmo que haja testes a falhar |
-| `npm run allure` | Gera um relatório Allure 3 com as suites que tiverem resultados (depois da triagem) |
-| `npm run allure:open` | Serve o relatório Allure no browser |
-| `npm run typecheck` | `tsc` sem gerar ficheiros |
-| `npm start` | Arranca a app local em http://localhost:3000 |
+| `npm test` / `npm run test:saucedemo` | Runs the suite (Chromium only) |
+| `npm run triage` / `npm run triage:saucedemo` | Triages the suite's latest report |
+| `npm run test:triage` / `npm run test:triage:saucedemo` | Runs tests and triage, even if tests fail |
+| `npm run allure` | Builds an Allure 3 report from every suite that has results (run after triage) |
+| `npm run allure:open` | Serves the Allure report in the browser |
+| `npm run typecheck` | `tsc` without emitting files |
+| `npm start` | Starts the local app at http://localhost:3000 |
 
-Tudo o que cada suite gera fica em `reports/<suite>/`: `results.json`, `playwright-report/`, `allure-results/` e `triage/` (Markdown, HTML e JSON). O Allure combinado fica em `reports/allure-report/`. Os históricos da triagem ficam em `.history/<suite>/` e o do Allure em `.history/allure.jsonl`.
+Everything each suite produces goes to `reports/<suite>/`: `results.json`, `playwright-report/`, `allure-results/` and `triage/` (Markdown, HTML and JSON). The combined Allure report goes to `reports/allure-report/`. Triage history is stored in `.history/<suite>/` and Allure history in `.history/allure.jsonl`.
 
-**Sem chave**, todas as falhas ficam `unclassified` e o exit code é 0. **Com chave**, o exit code é 1 se houver falhas classificadas como `bug`.
+**Without a key**, every failure is `unclassified` and the exit code is 0. **With a key**, the exit code is 1 if any failure is classified as `bug`.
 
-### Variáveis de ambiente
+### Environment variables
 
-| Variável | Default | Para quê |
+| Variable | Default | Purpose |
 |---|---|---|
-| `TYPESAFE_API_KEY` | – | Chave da API. Sem ela, a triagem corre em fallback |
-| `TYPESAFE_DEFAULT_MODEL` | `jev-latest` | Modelo. Fixa uma versão (ex.: `jev-1.13.0`) depois de afinares os limiares |
-| `SUITE` | `local` | Suite que a triagem processa (`local` ou `saucedemo`) |
-| `TRIAGE_CONFIDENCE_THRESHOLD` | `0.6` | Abaixo deste valor, a falha fica `needs_review` |
-| `TRIAGE_TEST_DEFECT_THRESHOLD` | `0.7` | `bug` com P(defeito do teste) acima disto passa a `needs_review` |
-| `TRIAGE_SLOWNESS_THRESHOLD` | `0.7` | A partir daqui, a lentidão vira tag `jev:slow` no Allure |
-| `TRIAGE_FAIL_ON` | `bug` | Veredictos que fazem o job falhar, separados por vírgula |
-| `TRIAGE_HISTORY_SIZE` | `20` | Quantas execuções guardar por teste |
-| `FAKE_ENV_DOWN` | – | `1`: na app local, `/api/inventory` devolve 503 |
-| `FLAKY_MAX_DELAY_MS` | `2000` | Atraso máximo de `/api/report` na app local |
-| `SAUCE_ENV_DOWN` | – | `1`: no saucedemo, o teste "o inventário carrega" corta a rede |
+| `TYPESAFE_API_KEY` | – | API key. Without it, triage runs in fallback mode |
+| `TYPESAFE_DEFAULT_MODEL` | `jev-latest` | Model. Pin a version (e.g. `jev-1.13.0`) once you have tuned the thresholds |
+| `SUITE` | `local` | Suite to triage (`local` or `saucedemo`) |
+| `TRIAGE_CONFIDENCE_THRESHOLD` | `0.6` | Below this value, the failure becomes `needs_review` |
+| `TRIAGE_TEST_DEFECT_THRESHOLD` | `0.7` | A `bug` with P(test code defect) above this becomes `needs_review` |
+| `TRIAGE_SLOWNESS_THRESHOLD` | `0.7` | From this value on, slowness becomes a `jev:slow` tag in Allure |
+| `TRIAGE_FAIL_ON` | `bug` | Comma-separated verdicts that fail the job |
+| `TRIAGE_HISTORY_SIZE` | `20` | How many runs to keep per test |
+| `FAKE_ENV_DOWN` | – | `1`: in the local app, `/api/inventory` returns 503 |
+| `FLAKY_MAX_DELAY_MS` | `2000` | Maximum delay of `/api/report` in the local app |
+| `SAUCE_ENV_DOWN` | – | `1`: in saucedemo, the "inventory loads" test cuts off the network |
 
 ## Pipeline (GitHub Actions)
 
-O workflow [`.github/workflows/e2e-triage.yml`](.github/workflows/e2e-triage.yml) corre em `push` e `pull_request`, com uma **matriz** de duas suites (`local` e `saucedemo`). Uma suite a falhar não cancela a outra.
+The [`.github/workflows/e2e-triage.yml`](.github/workflows/e2e-triage.yml) workflow runs on `push` and `pull_request`, with a **matrix** of two suites (`local` and `saucedemo`). A failing suite does not cancel the other.
 
-Em cada suite:
+For each suite:
 
-1. Instala as dependências e o Chromium.
-2. Corre os testes com `continue-on-error`: os testes vermelhos não decidem sozinhos o resultado do job.
-3. Descarrega do GitHub Pages o histórico da triagem e o do Allure.
-4. Corre a triagem com `if: always()`. Este passo decide o resultado: o job falha só se houver veredictos em `TRIAGE_FAIL_ON`. Os restantes aparecem como avisos no summary.
-5. Publica os artifacts `reports-<suite>` e os `allure-results` já enriquecidos pelo Jev.
+1. Installs dependencies and Chromium.
+2. Runs the tests with `continue-on-error`: red tests alone do not decide the job result.
+3. Downloads the triage history and the Allure history from GitHub Pages.
+4. Runs triage with `if: always()`. This step decides the result: the job fails only if there are verdicts in `TRIAGE_FAIL_ON`. The rest show up as warnings in the summary.
+5. Uploads the `reports-<suite>` artifacts and the Jev-enriched `allure-results`.
 
-Depois das duas suites:
+After both suites:
 
-- O job **`allure`** junta os `allure-results` das duas, descarrega o histórico do Allure do Pages e gera **um único relatório Allure**.
-- O job **`deploy-pages`**, em push para `master`, publica tudo:
-  - `/`: triagem da suite local;
-  - `/saucedemo/`: triagem do saucedemo;
-  - `/allure/`: Allure com as duas suites.
+- The **`allure`** job merges both suites' `allure-results`, downloads the Allure history from Pages and builds **a single Allure report**.
+- The **`deploy-pages`** job, on push to `master`, publishes everything:
+  - `/`: local suite triage;
+  - `/saucedemo/`: saucedemo triage;
+  - `/allure/`: Allure report with both suites.
 
-  Cada triagem tem também o seu `/playwright-report/` e o seu histórico. A publicação acontece mesmo quando os jobs falham por causa de um bug.
+  Each triage page also has its own `/playwright-report/` and history. Publishing happens even when jobs fail because of a bug.
 
-> Para ativares o Pages num fork: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+> To enable Pages on a fork: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
-### Configurar o secret
+### Setting up the secret
 
-1. No GitHub, abre o repositório e vai a **Settings → Secrets and variables → Actions**.
-2. Em **Secrets**, clica em **New repository secret**, com nome `TYPESAFE_API_KEY` e a tua chave como valor.
-3. (Opcional) Em **Variables**, cria `TRIAGE_FAIL_ON`, `TRIAGE_CONFIDENCE_THRESHOLD` ou `TRIAGE_TEST_DEFECT_THRESHOLD` para mudar as regras sem editar o workflow.
+1. On GitHub, open the repository and go to **Settings → Secrets and variables → Actions**.
+2. Under **Secrets**, click **New repository secret**, with the name `TYPESAFE_API_KEY` and your key as the value.
+3. (Optional) Under **Variables**, create `TRIAGE_FAIL_ON`, `TRIAGE_CONFIDENCE_THRESHOLD` or `TRIAGE_TEST_DEFECT_THRESHOLD` to change the rules without editing the workflow.
 
-Sem o secret, o pipeline corre em fallback e passa. O mesmo acontece em pull requests vindos de forks, porque o GitHub não lhes passa secrets.
+Without the secret, the pipeline runs in fallback mode and passes. The same happens for pull requests from forks, because GitHub does not pass secrets to them.
 
-### Custos
+### Costs
 
-A app local corre dentro do runner, e o saucedemo é público, por isso não há alojamento. Em repositórios públicos, o GitHub Actions é gratuito nos runners normais. O único custo é a API do Jev, cobrada por token de entrada. Cada falha usa alguns milhares de tokens, sobretudo por causa do snapshot da página.
+The local app runs inside the runner and saucedemo is public, so there is no hosting. On public repositories, GitHub Actions is free on standard runners. The only cost is the Jev API, billed per input token. Each failure uses a few thousand tokens, mostly because of the page snapshot.
 
-## Estrutura
+## Project structure
 
 ```
-app/                          servidor Node (http nativo) + página HTML (suite local)
-tests/local/                  testes da app local (shop, report = flaky, inventory = environment)
-tests/saucedemo/              testes do saucedemo + support.ts (login e fixture data-test)
-playwright.shared.ts          configuração comum: reports/<suite>/, reporters, sem retries
-playwright.config.ts          suite local (webServer)
-playwright.saucedemo.config.ts suite saucedemo
-allurerc.mjs                  Allure 3: um relatório, um environment por suite, categorias do Jev
+app/                          Node server (native http) + HTML page (local suite)
+tests/local/                  local app tests (shop, report = flaky, inventory = environment)
+tests/saucedemo/              saucedemo tests + support.ts (login and data-test fixture)
+playwright.shared.ts          shared config: reports/<suite>/, reporters, no retries
+playwright.config.ts          local suite (webServer)
+playwright.saucedemo.config.ts saucedemo suite
+allurerc.mjs                  Allure 3: one report, one environment per suite, Jev categories
 triage/
-  config.ts           variáveis de ambiente e caminhos por suite
-  report-parser.ts    lê o relatório JSON: erro, stack, código do teste, snapshot, data-test
-  history.ts          histórico de execuções por teste
-  jev-classifier.ts   ★ integração com o Jev (choice + 2 noul)
-  allure.ts           acrescenta a análise do Jev aos resultados Allure
-  markdown.ts         relatório Markdown
-  html.ts             página HTML do GitHub Pages
-  triage.ts           ponto de entrada + exit code
+  config.ts           environment variables and per-suite paths
+  report-parser.ts    reads the JSON report: error, stack, test code, snapshot, data-test
+  history.ts          per-test run history
+  jev-classifier.ts   ★ Jev integration (choice + 2 nouls)
+  allure.ts           adds Jev's analysis to the Allure results
+  markdown.ts         Markdown report
+  html.ts             GitHub Pages HTML page
+  triage.ts           entry point + exit code
 ```
 
-## Notas para aprender mais
+## Notes and next steps
 
-- Os limiares (`0.6` e `0.7`) são um ponto de partida. A documentação da TypeSafe recomenda afiná-los com dados reais. Guarda os `triage-results.json` de várias execuções e compara-os com a classificação feita por uma pessoa.
-- `confidence` e o valor de uma `noul` medem a incerteza do modelo. Não são uma garantia de que a resposta está certa. Ver [Confidence](https://docs.typesafe.ai/confidence) e [Noul](https://docs.typesafe.ai/primitives/noul).
-- Ideias para evoluir:
-  - registar no state os tempos de resposta da rede durante o teste;
-  - usar uma `score` para a gravidade do bug;
-  - acrescentar uma `noul` "esta falha corresponde a um problema conhecido?", com a lista de problemas no state.
+- The thresholds (`0.6` and `0.7`) are a starting point. The TypeSafe docs recommend tuning them with real data: keep the `triage-results.json` from several runs and compare them against a human classification.
+- `confidence` and a `noul`'s value measure the model's uncertainty. They are not a guarantee that the answer is correct. See [Confidence](https://docs.typesafe.ai/confidence) and [Noul](https://docs.typesafe.ai/primitives/noul).
+- Ideas for further work:
+  - record network response times during the test in the state;
+  - use a `score` for bug severity;
+  - add a `noul` "does this failure match a known issue?", with the list of known issues in the state.
