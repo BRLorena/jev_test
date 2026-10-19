@@ -4,39 +4,39 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
-test("a home mostra o título da loja", async ({ page }) => {
+test("the home page shows the shop title", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Mini Shop" })).toBeVisible();
 });
 
-test("lista os três produtos", async ({ page }) => {
+test("lists the three products", async ({ page }) => {
   await expect(page.locator("#products li")).toHaveCount(3);
 });
 
-test("adicionar produtos atualiza o total do carrinho", async ({ page }) => {
-  await page.getByRole("button", { name: "Adicionar Teclado" }).click();
-  await page.getByRole("button", { name: "Adicionar Rato" }).click();
+test("adding products updates the cart total", async ({ page }) => {
+  await page.getByRole("button", { name: "Add Keyboard" }).click();
+  await page.getByRole("button", { name: "Add Mouse" }).click();
   await expect(page.locator("#total")).toHaveText("60.00");
 });
 
-test("remover um produto do carrinho", async ({ page }) => {
-  await page.getByRole("button", { name: "Adicionar Monitor" }).click();
-  await page.getByRole("button", { name: "Remover Monitor" }).click();
+test("remove a product from the cart", async ({ page }) => {
+  await page.getByRole("button", { name: "Add Monitor" }).click();
+  await page.getByRole("button", { name: "Remove Monitor" }).click();
   await expect(page.locator("#cart li")).toHaveCount(0);
   await expect(page.locator("#total")).toHaveText("0.00");
 });
 
-test("o formulário de contacto confirma o envio", async ({ page }) => {
+test("the contact form confirms submission", async ({ page }) => {
   await page.getByPlaceholder("email").fill("qa@example.com");
-  await page.getByRole("button", { name: "Enviar" }).click();
-  await expect(page.getByRole("status")).toHaveText("Obrigado, qa@example.com!");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("status")).toHaveText("Thank you, qa@example.com!");
 });
 
-// BUG REAL: a app aplica o desconto duas vezes (index.html, renderCart).
-// 80 € com 10% de desconto deve dar 72.00, mas a app mostra 64.80.
-test("desconto de 10% é aplicado ao total", async ({ page }) => {
-  await page.getByRole("button", { name: "Adicionar Teclado" }).click();
-  await page.getByRole("button", { name: "Adicionar Rato" }).click();
-  await page.getByRole("button", { name: "Adicionar Rato" }).click();
-  await page.getByLabel("Aplicar desconto de 10%").check();
+// REAL BUG: the app applies the discount twice (index.html, renderCart).
+// 80 € with a 10% discount should be 72.00, but the app shows 64.80.
+test("10% discount is applied to the total", async ({ page }) => {
+  await page.getByRole("button", { name: "Add Keyboard" }).click();
+  await page.getByRole("button", { name: "Add Mouse" }).click();
+  await page.getByRole("button", { name: "Add Mouse" }).click();
+  await page.getByLabel("Apply 10% discount").check();
   await expect(page.locator("#total")).toHaveText("72.00");
 });

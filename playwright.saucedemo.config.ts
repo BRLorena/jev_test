@@ -1,4 +1,4 @@
-// Suite "saucedemo": testes contra https://www.saucedemo.com (site público para praticar automação).
+// "saucedemo" suite: tests against https://www.saucedemo.com (a public site for practising automation).
 import { defineConfig } from "@playwright/test";
 import { suiteConfig } from "./playwright.shared.ts";
 
@@ -10,7 +10,7 @@ export default defineConfig({
     ...base.use,
     baseURL: "https://www.saucedemo.com",
     testIdAttribute: "data-test",
-    // Um seletor que não existe falha em 10 s em vez de esperar pelo timeout do teste (30 s).
+    // A missing selector fails after 10 s instead of waiting for the test timeout (30 s).
     actionTimeout: 10_000,
   },
 });

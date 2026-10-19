@@ -1,24 +1,24 @@
 import { test, expect, login, loginToInventory } from "./support.ts";
 
-test("login válido leva ao inventário", async ({ page }) => {
+test("valid login leads to the inventory", async ({ page }) => {
   await loginToInventory(page, "standard_user");
   await expect(page).toHaveURL(/inventory\.html/);
   await expect(page.getByTestId("inventory-item")).toHaveCount(6);
 });
 
-test("utilizador bloqueado vê a mensagem de erro", async ({ page }) => {
+test("locked-out user sees the error message", async ({ page }) => {
   await login(page, "locked_out_user");
   await expect(page.getByTestId("error")).toHaveText("Epic sadface: Sorry, this user has been locked out.");
 });
 
-test("password errada mostra erro", async ({ page }) => {
+test("wrong password shows an error", async ({ page }) => {
   await login(page, "standard_user", "wrong_password");
   await expect(page.getByTestId("error")).toContainText("Username and password do not match");
 });
 
-// AMBIENTE: com SAUCE_ENV_DOWN=1 todos os pedidos ao site são cortados, como se a rede
-// ou o site estivessem em baixo. Sem a variável, o teste passa.
-test("o inventário carrega", async ({ page }) => {
+// ENVIRONMENT: with SAUCE_ENV_DOWN=1 every request to the site is aborted, as if the network
+// or the site were down. Without the variable, the test passes.
+test("the inventory loads", async ({ page }) => {
   if (process.env.SAUCE_ENV_DOWN === "1") {
     await page.route("**/*", (route) => route.abort("internetdisconnected"));
   }

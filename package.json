@@ -1,7 +1,7 @@
 {
   "name": "playwright-jev-triage",
   "version": "1.0.0",
-  "description": "Playwright + Jev (TypeSafe System One): triagem automática de testes falhados",
+  "description": "Playwright + Jev (TypeSafe System One): automatic triage of failed tests",
   "scripts": {
     "pretest": "node -e \"require('fs').rmSync('reports/local/allure-results',{recursive:true,force:true})\"",
     "test": "playwright test",

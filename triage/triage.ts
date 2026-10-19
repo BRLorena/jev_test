@@ -1,12 +1,12 @@
 /**
- * Triagem das falhas da última execução do Playwright.
+ * Triage of the failures from the latest Playwright run.
  *
- *   1. lê test-results/results.json e o histórico de execuções anteriores
- *   2. classifica cada falha com o Jev (ou `unclassified` sem chave), incluindo o histórico no state
- *   3. escreve triage-output/triage-report.md, index.html (GitHub Pages) e triage-results.json (+ GITHUB_STEP_SUMMARY)
- *      acrescenta a análise aos resultados Allure (labels, descrição e anexo)
- *      e atualiza o histórico (também copiado para triage-output/history.json, publicado no Pages)
- *   4. exit code 1 só se houver falhas com veredicto em TRIAGE_FAIL_ON (default: bug)
+ *   1. reads reports/<suite>/results.json and the history of previous runs
+ *   2. classifies each failure with Jev (or `unclassified` without a key), including history in the state
+ *   3. writes reports/<suite>/triage/triage-report.md, index.html (GitHub Pages) and triage-results.json (+ GITHUB_STEP_SUMMARY),
+ *      adds the analysis to the Allure results (labels, description and attachment)
+ *      and updates the history (also copied to reports/<suite>/triage/history.json, published on Pages)
+ *   4. exit code 1 only if there are failures with a verdict in TRIAGE_FAIL_ON (default: bug)
  */
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -20,21 +20,21 @@ import { renderHtml } from "./html.ts";
 import { enrichAllureResults } from "./allure.ts";
 
 if (!existsSync(config.reportPath)) {
-  console.error(`Relatório não encontrado: ${config.reportPath}. Corre primeiro "npm test".`);
+  console.error(`Report not found: ${config.reportPath}. Run "npm test" first.`);
   process.exit(2);
 }
 
 const { failures, runs, startTime } = await readReport(config.reportPath);
 const history = await loadHistory(config.historyPath);
-console.log(`Falhas encontradas: ${failures.length} · testes com histórico: ${Object.keys(history.tests).length}`);
+console.log(`Failures found: ${failures.length} · tests with history: ${Object.keys(history.tests).length}`);
 
-// Com chave → Jev. Sem chave → fallback, nenhuma chamada de rede.
+// With a key → Jev. Without a key → fallback, no network calls.
 const classify = config.apiKey
   ? createJevClassifier(config.apiKey, config)
   : async () => ({ verdict: "unclassified" as const });
-if (!config.apiKey) console.log("TYPESAFE_API_KEY não definida → modo fallback (unclassified).");
+if (!config.apiKey) console.log("TYPESAFE_API_KEY not set → fallback mode (unclassified).");
 
-// Pedidos em paralelo, no máximo `concurrency` de cada vez.
+// Parallel requests, at most `concurrency` at a time.
 const items: TriageItem[] = new Array(failures.length);
 let next = 0;
 await Promise.all(
@@ -59,10 +59,10 @@ const markdown = renderMarkdown(items, {
 await mkdir(config.outputDir, { recursive: true });
 
 const enriched = await enrichAllureResults(config.allureResultsDir, items, config);
-if (enriched > 0) console.log(`Allure: ${enriched} resultado(s) enriquecido(s) com a análise do Jev.`);
+if (enriched > 0) console.log(`Allure: ${enriched} result(s) enriched with Jev's analysis.`);
 
-// O histórico só é atualizado depois de classificar: o Jev vê apenas execuções anteriores.
-// Correr a triagem duas vezes sobre o mesmo relatório não duplica entradas: o id é o mesmo.
+// History is only updated after classifying: Jev only sees previous runs.
+// Running triage twice on the same report doesn't duplicate entries: the id is the same.
 const runId = config.runId ?? `local-${startTime ?? new Date().toISOString()}`;
 const updated = appendRun(history, runs, runId, config.historySize);
 await saveHistory(config.historyPath, updated);
@@ -76,7 +76,7 @@ await writeFile(
   join(config.outputDir, "index.html"),
   renderHtml(items, {
     suite: config.suite,
-    // No Pages, "local" está na raiz e as outras suites em /<suite>/.
+    // On Pages, "local" is at the root and the other suites at /<suite>/.
     nav:
       config.suite === "local"
         ? [{ label: "saucedemo", href: "saucedemo/" }]
@@ -103,19 +103,19 @@ for (const item of items) {
   const { test, result } = item;
   const extra =
     result.confidence !== undefined
-      ? ` (confiança ${result.confidence.toFixed(2)} · defeito do teste ${result.testCodeDefect?.toFixed(2)} · lentidão ${result.slowness?.toFixed(2)})`
+      ? ` (confidence ${result.confidence.toFixed(2)} · test defect ${result.testCodeDefect?.toFixed(2)} · slowness ${result.slowness?.toFixed(2)})`
       : "";
   const line = `[${result.verdict}] ${test.title}${extra}`;
   console.log(line);
-  // Anotações do GitHub Actions: erro para bloqueantes, aviso para o resto.
+  // GitHub Actions annotations: error for blocking failures, warning for the rest.
   if (process.env.GITHUB_ACTIONS) {
     const level = blocking.includes(item) ? "error" : "warning";
-    console.log(`::${level} title=Triagem: ${result.verdict}::${test.title}`);
+    console.log(`::${level} title=Triage: ${result.verdict}::${test.title}`);
   }
 }
 
-console.log(`\nRelatório: ${join(config.outputDir, "triage-report.md")}`);
+console.log(`\nReport: ${join(config.outputDir, "triage-report.md")}`);
 if (blocking.length > 0) {
-  console.error(`${blocking.length} falha(s) bloqueante(s) (${config.failOn.join(", ")}).`);
+  console.error(`${blocking.length} blocking failure(s) (${config.failOn.join(", ")}).`);
   process.exit(1);
 }

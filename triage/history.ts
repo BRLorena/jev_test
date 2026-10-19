@@ -1,5 +1,5 @@
-// Histórico de execuções por teste, para o Jev distinguir "falha sempre" de "falha às vezes".
-// Formato simples, em JSON: { version, tests: { <key>: [entrada mais antiga, ..., mais recente] } }
+// Per-test run history, so Jev can tell "always fails" from "sometimes fails".
+// Simple JSON format: { version, tests: { <key>: [oldest entry, ..., newest] } }
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { TestRun } from "./report-parser.ts";
@@ -17,7 +17,7 @@ export interface History {
   tests: Record<string, HistoryEntry[]>;
 }
 
-/** Ficheiro em falta ou inválido → histórico vazio (primeira execução). */
+/** Missing or invalid file → empty history (first run). */
 export async function loadHistory(path: string): Promise<History> {
   try {
     const data = JSON.parse(await readFile(path, "utf8")) as History;
@@ -26,7 +26,7 @@ export async function loadHistory(path: string): Promise<History> {
   return { version: 1, tests: {} };
 }
 
-/** Acrescenta os resultados desta execução e guarda apenas as últimas `size` por teste. */
+/** Appends this run's results and keeps only the last `size` per test. */
 export function appendRun(history: History, runs: TestRun[], runId: string, size: number): History {
   const date = new Date().toISOString();
   const tests = { ...history.tests };
@@ -43,7 +43,7 @@ export async function saveHistory(path: string, history: History) {
   await writeFile(path, JSON.stringify(history, null, 2));
 }
 
-/** Sequência curta para os relatórios, ex.: "✅✅❌✅". */
+/** Short sequence for the reports, e.g. "✅✅❌✅". */
 export function historyStrip(entries: HistoryEntry[], max = 10): string {
   const icon = { passed: "✅", failed: "❌", flaky: "🎲", skipped: "⏭️" } as const;
   return entries.slice(-max).map((e) => icon[e.status]).join("") || "–";

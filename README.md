@@ -15,17 +15,15 @@ Published reports:
 
 ## The two suites
 
-> Test titles in the code are in Portuguese. The tables below use English descriptions.
-
 ### `local`: a mini shop in `app/`
 
 Served by Playwright's `webServer`, with no dependency on external sites. It has 8 tests, 3 of which fail on purpose:
 
 | Test | Failure type | How it is triggered |
 |---|---|---|
-| 10% discount is applied to the total | 🐞 bug | The app applies the discount twice (`app/public/index.html`) |
-| The report loads in under 1 second | 🎲 flaky | `/api/report` waits a random 0 to `FLAKY_MAX_DELAY_MS`, but the test only waits 1 s |
-| Product stock is displayed | 🔌 environment | `/api/inventory` returns 503 when `FAKE_ENV_DOWN=1` |
+| `10% discount is applied to the total` | 🐞 bug | The app applies the discount twice (`app/public/index.html`) |
+| `the report loads in under 1 second` | 🎲 flaky | `/api/report` waits a random 0 to `FLAKY_MAX_DELAY_MS`, but the test only waits 1 s |
+| `product stock is displayed` | 🔌 environment | `/api/inventory` returns 503 when `FAKE_ENV_DOWN=1` |
 
 ### `saucedemo`: https://www.saucedemo.com
 
@@ -33,16 +31,16 @@ A public site built for practising test automation. Each demo user has different
 
 | Test | User | Expected failure |
 |---|---|---|
-| Valid login, locked-out user, wrong password, checkout with a $28.06 total | standard / locked_out | ✅ pass |
-| Products have different images | problem_user | 🐞 all images are the same |
-| Clicking a product opens that product | problem_user | 🐞 the Backpack opens the Fleece Jacket |
-| Checkout accepts first and last name | problem_user | 🐞 typing in "Last Name" writes into "First Name" |
-| Sort by price | error_user | 🐞 "Sorting is broken!" alert and the list does not change |
-| Removing from the cart updates the counter | error_user | 🐞 the "Remove" button does nothing |
-| List price matches the detail page price | visual_user | 🐞 list prices are random |
-| Full checkout within 3 s | performance_glitch_user | 🐢 works, but takes about 6 s |
-| Add the backpack to the cart | standard_user | 🧪 **test code defect**: deliberately wrong selector |
-| The inventory loads | standard_user | 🔌 with `SAUCE_ENV_DOWN=1` the network is cut off |
+| valid login, locked-out user, wrong password, checkout with a $28.06 total | standard / locked_out | ✅ pass |
+| `products have different images` | problem_user | 🐞 all images are the same |
+| `clicking a product opens that product` | problem_user | 🐞 the Backpack opens the Fleece Jacket |
+| `checkout accepts first and last name` | problem_user | 🐞 typing in "Last Name" writes into "First Name" |
+| `sort by price (low to high)` | error_user | 🐞 "Sorting is broken!" alert and the list does not change |
+| `removing from the cart updates the counter` | error_user | 🐞 the "Remove" button does nothing |
+| `list price matches the detail page price` | visual_user | 🐞 list prices are random |
+| `full checkout within 3 s` | performance_glitch_user | 🐢 works, but takes about 6 s |
+| `add the backpack to the cart` | standard_user | 🧪 **test code defect**: deliberately wrong selector |
+| `the inventory loads` | standard_user | 🔌 with `SAUCE_ENV_DOWN=1` the network is cut off |
 
 ## Where Jev fits in the flow
 
@@ -102,7 +100,7 @@ The wrong selector (`add-to-cart-backpack` instead of `add-to-cart-sauce-labs-ba
 
 It works the other way round too. With `problem_user`, the test fills in the last name and the app replies "Last Name is required". It looks like a badly written test, but Jev returned **0.29**: the defect is in the app.
 
-- The test code is sent **without comments**. Our test comments say "BUG" or "DEFEITO DO TESTE" (test defect), and sending them would hand Jev the answer.
+- The test code is sent **without comments**. Our test comments say "BUG" or "TEST DEFECT", and sending them would hand Jev the answer.
 - The `data-test` list comes from an automatic fixture in [`tests/saucedemo/support.ts`](tests/saucedemo/support.ts). The snapshot comes from the `error-context` attachment that Playwright already creates for every failure.
 
 ### 3. Slowness is its own dimension
@@ -165,7 +163,7 @@ Everything each suite produces goes to `reports/<suite>/`: `results.json`, `play
 | `TRIAGE_HISTORY_SIZE` | `20` | How many runs to keep per test |
 | `FAKE_ENV_DOWN` | – | `1`: in the local app, `/api/inventory` returns 503 |
 | `FLAKY_MAX_DELAY_MS` | `2000` | Maximum delay of `/api/report` in the local app |
-| `SAUCE_ENV_DOWN` | – | `1`: in saucedemo, the "inventory loads" test cuts off the network |
+| `SAUCE_ENV_DOWN` | – | `1`: in saucedemo, the "the inventory loads" test cuts off the network |
 
 ## Pipeline (GitHub Actions)
 

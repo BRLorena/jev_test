@@ -1,18 +1,18 @@
 /**
- * ★ Onde o Jev entra.
+ * ★ Where Jev comes in.
  *
- * Para cada teste falhado fazemos UM pedido ao System One (modelo Jev) com:
- *   - `state`: os factos da falha (o que o Jev "lê");
- *   - uma pergunta `choice` (o que o Jev "decide"): bug | flaky | environment;
- *   - duas perguntas `noul` (sim/não) que podem ser verdade em simultâneo com a categoria:
- *     o defeito está no código do teste? a falha deve-se a lentidão?
+ * For each failed test we make ONE request to System One (the Jev model) with:
+ *   - `state`: the facts about the failure (what Jev "reads");
+ *   - a `choice` question (what Jev "decides"): bug | flaky | environment;
+ *   - two `noul` (yes/no) questions that can be true at the same time as the category:
+ *     is the defect in the test code? is the failure caused by slowness?
  *
- * As três perguntas vão no MESMO pedido: correm em paralelo sobre o mesmo state e não veem
- * as respostas umas das outras (fan-out). A latência quase não muda; só sobem alguns tokens.
+ * All three questions go in the SAME request: they run in parallel over the same state and
+ * don't see each other's answers (fan-out). Latency barely changes; only a few extra tokens.
  *
- * O Jev não gera texto: a `choice` devolve a opção escolhida, a probabilidade de cada opção
- * e um `confidence`; cada `noul` devolve só a probabilidade de "sim" (sem `confidence`:
- * perto de 0.5 significa "não sei"). A decisão final fica no nosso código.
+ * Jev doesn't generate text: the `choice` returns the chosen option, the probability of each
+ * option and a `confidence`; each `noul` returns only the probability of "yes" (no `confidence`:
+ * close to 0.5 means "I don't know"). The final decision lives in our code.
  *
  * Docs: https://docs.typesafe.ai/primitives/choice, .../primitives/noul, .../confidence
  */
@@ -21,9 +21,9 @@ import { type Category, type Verdict } from "./config.ts";
 import type { FailedTest } from "./report-parser.ts";
 import type { HistoryEntry } from "./history.ts";
 
-// 1) A pergunta. Os critérios usam objetos (what / not_for / signals) porque as três
-//    categorias confundem-se facilmente; o Jev lê os nomes e os valores dos campos.
-//    O id "category" é só para o nosso código: o modelo nunca o vê.
+// 1) The question. The criteria use objects (what / not_for / signals) because the three
+//    categories are easy to confuse; Jev reads both the field names and their values.
+//    The id "category" is only for our code: the model never sees it.
 const triageQuestions = {
   category: choice(
     {
@@ -63,7 +63,7 @@ const triageQuestions = {
     },
   ),
 
-  // Noul 1: separa "bug na app" de "bug no teste". Precisa de ver o código (`failure.test_source`).
+  // Noul 1: separates "bug in the app" from "bug in the test". It needs to see the code (`failure.test_source`).
   test_code_defect: noul(
     "Is the root cause of this failure a mistake in the test code itself (`failure.test_source`), rather than in the application under test?",
     {
@@ -72,7 +72,7 @@ const triageQuestions = {
     },
   ),
 
-  // Noul 2: lentidão constante não é flaky nem comportamento errado: é performance.
+  // Noul 2: consistent slowness is neither flaky nor wrong behavior: it's performance.
   slowness: noul(
     "Did this test fail because the application was too slow, even though it may eventually behave correctly?",
     {
@@ -84,24 +84,24 @@ const triageQuestions = {
 
 export interface Classification {
   verdict: Verdict;
-  /** Opção que o Jev escolheu (mesmo quando o veredicto é needs_review). */
+  /** The option Jev chose (even when the verdict is needs_review). */
   suggested?: Category;
   confidence?: number;
   probabilities?: Record<Category, number>;
-  /** P(o defeito está no código do teste), da noul `test_code_defect`. */
+  /** P(the defect is in the test code), from the `test_code_defect` noul. */
   testCodeDefect?: number;
-  /** P(a falha deve-se a lentidão), da noul `slowness`. */
+  /** P(the failure is caused by slowness), from the `slowness` noul. */
   slowness?: number;
   model?: string;
-  /** O state exatamente como foi enviado ao Jev (anexado ao Allure). */
+  /** The state exactly as sent to Jev (attached to Allure). */
   state?: JsonValue;
   error?: string;
 }
 
-// 2) O state: factos estruturados com nomes claros. Só factos observados,
-//    sem a nossa opinião (não passamos o rótulo "flaky" do Playwright, só o que aconteceu).
-//    O histórico é o sinal mais forte de flakiness: numa única execução, um timeout
-//    parece-se com um bug; ao longo de várias execuções, "passa às vezes" fica evidente.
+// 2) The state: structured facts with clear names. Only observed facts, without our
+//    opinion (we don't pass Playwright's "flaky" label, only what happened).
+//    History is the strongest flakiness signal: in a single run a timeout looks like
+//    a bug; across several runs, "passes sometimes" becomes obvious.
 function buildState(t: FailedTest, history: HistoryEntry[]) {
   const recent = history.slice(-10);
   const historyState: JsonValue =
@@ -134,9 +134,9 @@ function buildState(t: FailedTest, history: HistoryEntry[]) {
       })),
       error_message: t.errorMessage,
       stack_excerpt: t.stackExcerpt,
-      // Necessário para a noul `test_code_defect`: sem ver o código, o Jev não pode julgar o teste.
+      // Needed for the `test_code_defect` noul: without seeing the code, Jev can't judge the test.
       test_source: t.sourceExcerpt || null,
-      // O que a página tinha quando o teste falhou: permite ver se um seletor do teste existe.
+      // What the page contained when the test failed: shows whether a test selector exists.
       page_test_ids: t.pageTestIds ?? null,
       page_snapshot: t.pageSnapshot ?? null,
       history: historyState,
@@ -148,15 +148,15 @@ export function createJevClassifier(
   apiKey: string,
   policy: { confidenceThreshold: number; testDefectThreshold: number },
 ) {
-  // O SDK também leria TYPESAFE_API_KEY sozinho; passamos explícito para ficar claro.
-  // Modelo: TYPESAFE_DEFAULT_MODEL, senão "jev-latest" (default do SDK).
+  // The SDK would also read TYPESAFE_API_KEY by itself; we pass it explicitly for clarity.
+  // Model: TYPESAFE_DEFAULT_MODEL, otherwise "jev-latest" (the SDK default).
   const client = new TypeSafeClient({ apiKey, timeout: 20_000 });
 
-  /** `history`: execuções ANTERIORES deste teste (sem a atual). */
+  /** `history`: PREVIOUS runs of this test (excluding the current one). */
   return async function classify(t: FailedTest, history: HistoryEntry[]): Promise<Classification> {
     try {
-      // 3) A chamada. Um pedido por falha, com as três perguntas. As respostas vêm tipadas
-      //    a partir de `triageQuestions` (category → ChoiceResponse, as nouls → NoulResponse).
+      // 3) The call. One request per failure, with all three questions. Answers are typed
+      //    from `triageQuestions` (category → ChoiceResponse, the nouls → NoulResponse).
       const state = buildState(t, history);
       const response = await client.systemOne({
         state,
@@ -166,10 +166,10 @@ export function createJevClassifier(
       const testCodeDefect = response.answers.test_code_defect.noul;
       const slowness = response.answers.slowness.noul;
 
-      // 4) A política é nossa:
-      //    - confiança baixa na categoria → um humano decide;
-      //    - "bug", mas provavelmente no código do teste → não bloquear como se fosse da app.
-      //    A lentidão é só informativa (aparece nos relatórios), não muda o veredicto.
+      // 4) The policy is ours:
+      //    - low confidence in the category → a human decides;
+      //    - "bug", but probably in the test code → don't block as if it were the app's fault.
+      //    Slowness is informational only (shown in the reports); it doesn't change the verdict.
       let verdict: Verdict = answer.confidence < policy.confidenceThreshold ? "needs_review" : answer.choice;
       if (verdict === "bug" && testCodeDefect >= policy.testDefectThreshold) verdict = "needs_review";
 
@@ -184,7 +184,7 @@ export function createJevClassifier(
         state,
       };
     } catch (err) {
-      // Falha da API (rede, 429 após retries, chave inválida...): não bloqueia o pipeline.
+      // API failure (network, 429 after retries, invalid key...): doesn't block the pipeline.
       return { verdict: "unclassified", error: err instanceof Error ? err.message : String(err) };
     }
   };

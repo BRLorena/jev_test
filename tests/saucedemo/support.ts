@@ -1,9 +1,9 @@
 import { test as base, expect, type Page } from "@playwright/test";
 
 /**
- * `test` com uma fixture automática: quando um teste falha, anexa a lista de `data-test`
- * presentes na página. A triagem envia-a ao Jev, que assim consegue ver se um seletor
- * do teste não existe na página (defeito do teste) ou se a página está mesmo errada.
+ * `test` with an automatic fixture: when a test fails, it attaches the list of `data-test`
+ * attributes on the page. Triage sends it to Jev, which can then tell whether a test selector
+ * does not exist on the page (test defect) or whether the page really is wrong.
  */
 export const test = base.extend<{ captureTestIds: void }>({
   captureTestIds: [
@@ -24,7 +24,7 @@ export { expect };
 
 export const PASSWORD = "secret_sauce";
 
-/** Utilizadores de demonstração do saucedemo; cada um tem defeitos diferentes de propósito. */
+/** Saucedemo demo users; each one has different deliberate defects. */
 export type SauceUser =
   | "standard_user"
   | "locked_out_user"

@@ -1,4 +1,4 @@
-// Gera o relatório Markdown da triagem.
+// Builds the triage Markdown report.
 import type { Verdict } from "./config.ts";
 import type { Classification } from "./jev-classifier.ts";
 import type { FailedTest } from "./report-parser.ts";
@@ -6,7 +6,7 @@ import { historyStrip, type HistoryEntry } from "./history.ts";
 
 export interface TriageItem {
   test: FailedTest;
-  /** Execuções anteriores deste teste (a mais recente no fim). */
+  /** Previous runs of this test (most recent last). */
   history: HistoryEntry[];
   result: Classification;
 }
@@ -26,29 +26,29 @@ export function renderMarkdown(
   items: TriageItem[],
   opts: { suite: string; usedJev: boolean; threshold: number; failOn: Verdict[]; blocking: TriageItem[] },
 ): string {
-  const lines: string[] = [`## 🧪 Triagem de falhas Playwright (Jev) · suite \`${opts.suite}\``, ""];
+  const lines: string[] = [`## 🧪 Playwright failure triage (Jev) · suite \`${opts.suite}\``, ""];
 
   if (!opts.usedJev) {
     lines.push(
-      "> ℹ️ `TYPESAFE_API_KEY` não definida: a triagem correu em modo **fallback** e não chamou a API. Todas as falhas ficam `unclassified`.",
+      "> ℹ️ `TYPESAFE_API_KEY` not set: triage ran in **fallback** mode and did not call the API. Every failure is `unclassified`.",
       "",
     );
   }
 
   if (items.length === 0) {
-    lines.push("✅ Nenhum teste falhou.");
+    lines.push("✅ No tests failed.");
     return lines.join("\n") + "\n";
   }
 
   const counts = new Map<Verdict, number>();
   for (const i of items) counts.set(i.result.verdict, (counts.get(i.result.verdict) ?? 0) + 1);
   lines.push(
-    `**${items.length}** falha(s): ` +
+    `**${items.length}** failure(s): ` +
       [...counts].map(([v, n]) => `${ICON[v]} ${v}: ${n}`).join(" · "),
     "",
-    `Limiar de confiança: **${opts.threshold}** · O job falha com: \`${opts.failOn.join(", ")}\``,
+    `Confidence threshold: **${opts.threshold}** · The job fails on: \`${opts.failOn.join(", ")}\``,
     "",
-    "| Veredicto | Teste | Sugestão do Jev | Confiança | bug | flaky | environment | Defeito do teste? | Lentidão? | Histórico |",
+    "| Verdict | Test | Jev suggestion | Confidence | bug | flaky | environment | Test defect? | Slowness? | History |",
     "|---|---|---|---|---|---|---|---|---|---|",
   );
 
@@ -59,19 +59,19 @@ export function renderMarkdown(
     );
   }
 
-  lines.push("", "<details><summary>Detalhes dos erros</summary>", "");
+  lines.push("", "<details><summary>Error details</summary>", "");
   for (const { test, result } of items) {
     lines.push(`#### ${cell(test.title)}`, "", "```", test.errorMessage.split("\n").slice(0, 8).join("\n"), "```");
-    if (result.error) lines.push(`_Erro ao chamar o Jev:_ \`${cell(result.error)}\``);
-    if (result.model) lines.push(`<sub>modelo: ${result.model}</sub>`);
+    if (result.error) lines.push(`_Error calling Jev:_ \`${cell(result.error)}\``);
+    if (result.model) lines.push(`<sub>model: ${result.model}</sub>`);
     lines.push("");
   }
   lines.push("</details>", "");
 
   if (opts.blocking.length > 0) {
-    lines.push(`❌ **${opts.blocking.length}** falha(s) bloqueiam o job (${opts.failOn.join(", ")}).`);
+    lines.push(`❌ **${opts.blocking.length}** failure(s) block the job (${opts.failOn.join(", ")}).`);
   } else {
-    lines.push("✅ Nenhuma falha bloqueante: as restantes ficam como aviso.");
+    lines.push("✅ No blocking failures: the rest are reported as warnings.");
   }
   return lines.join("\n") + "\n";
 }

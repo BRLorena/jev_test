@@ -1,9 +1,9 @@
-// Configuração partilhada pelas duas suites (local e saucedemo).
-// Cada suite escreve tudo em reports/<suite>/, para que a triagem, o Allure e o Pages
-// tratem as duas da mesma forma.
+// Config shared by both suites (local and saucedemo).
+// Each suite writes everything to reports/<suite>/, so triage, Allure and Pages
+// handle both the same way.
 import { devices, type PlaywrightTestConfig } from "@playwright/test";
 
-// Carrega o .env local, se existir (Node >= 21.7, sem dotenv).
+// Loads the local .env, if present (Node >= 21.7, no dotenv).
 try {
   process.loadEnvFile();
 } catch {}
@@ -14,16 +14,16 @@ export function suiteConfig(suite: string): PlaywrightTestConfig {
     testDir: `./tests/${suite}`,
     outputDir: `${dir}/test-results`,
     fullyParallel: true,
-    // Sem retries: cada teste corre uma vez e o Jev classifica essa única tentativa.
+    // No retries: each test runs once and Jev classifies that single attempt.
     retries: 0,
     reporter: [
       ["list"],
       ["html", { open: "never", outputFolder: `${dir}/playwright-report` }],
-      // A triagem lê este ficheiro.
+      // Triage reads this file.
       ["json", { outputFile: `${dir}/results.json` }],
-      // Resultados Allure 3 (um JSON por teste); a triagem acrescenta-lhes a análise do Jev.
-      // O label `suite_name` diz ao Allure a que ambiente pertence cada resultado (ver allurerc.mjs).
-      // Não usamos `suite`: esse nome já é usado pelo Allure para a hierarquia (nome do ficheiro).
+      // Allure 3 results (one JSON per test); triage adds Jev's analysis to them.
+      // The `suite_name` label tells Allure which environment each result belongs to (see allurerc.mjs).
+      // We don't use `suite`: Allure already uses that name for the hierarchy (file name).
       ["allure-playwright", { resultsDir: `${dir}/allure-results`, globalLabels: [{ name: "suite_name", value: suite }] }],
     ],
     use: { trace: "retain-on-failure" },

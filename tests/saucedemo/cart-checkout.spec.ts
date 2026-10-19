@@ -1,6 +1,6 @@
 import { test, expect, loginToInventory } from "./support.ts";
 
-test("checkout completo com total correto", async ({ page }) => {
+test("full checkout with the correct total", async ({ page }) => {
   await loginToInventory(page, "standard_user");
   await page.getByTestId("add-to-cart-sauce-labs-bike-light").click();
   await page.getByTestId("add-to-cart-sauce-labs-bolt-t-shirt").click();
@@ -17,8 +17,8 @@ test("checkout completo com total correto", async ({ page }) => {
   await expect(page.getByTestId("complete-header")).toHaveText("Thank you for your order!");
 });
 
-// BUG (error_user): o botão "Remove" não remove o produto.
-test("remover do carrinho atualiza o contador", async ({ page }) => {
+// BUG (error_user): the "Remove" button does not remove the product.
+test("removing from the cart updates the counter", async ({ page }) => {
   await loginToInventory(page, "error_user");
   await page.getByTestId("add-to-cart-sauce-labs-backpack").click();
   await page.getByTestId("add-to-cart-sauce-labs-bike-light").click();
@@ -28,10 +28,10 @@ test("remover do carrinho atualiza o contador", async ({ page }) => {
   await expect(page.getByTestId("shopping-cart-badge")).toHaveText("1");
 });
 
-// BUG (problem_user): o que se escreve no "Last Name" vai para o "First Name".
-// O teste preenche o apelido, mas a app responde "Last Name is required": parece um teste
-// mal escrito, mas o defeito é da app. Bom caso para a pergunta noul `test_code_defect`.
-test("o checkout aceita nome e apelido", async ({ page }) => {
+// BUG (problem_user): whatever is typed into "Last Name" goes into "First Name".
+// The test fills in the last name, but the app replies "Last Name is required": it looks like
+// a badly written test, but the defect is in the app. A good case for the `test_code_defect` noul.
+test("checkout accepts first and last name", async ({ page }) => {
   await loginToInventory(page, "problem_user");
   await page.getByTestId("add-to-cart-sauce-labs-backpack").click();
   await page.getByTestId("shopping-cart-link").click();
@@ -43,12 +43,12 @@ test("o checkout aceita nome e apelido", async ({ page }) => {
 
   const error = page.getByTestId("error");
   const errorText = (await error.isVisible()) ? await error.textContent() : null;
-  expect(errorText, "a app mostrou um erro depois de preencher nome, apelido e código postal").toBeNull();
+  expect(errorText, "the app showed an error after filling in first name, last name and postal code").toBeNull();
   await expect(page).toHaveURL(/checkout-step-two/);
 });
 
-// LENTIDÃO (performance_glitch_user): o fluxo funciona, mas demora demasiado.
-test("checkout completo dentro de 3 s", async ({ page }) => {
+// SLOWNESS (performance_glitch_user): the flow works, but takes too long.
+test("full checkout within 3 s", async ({ page }) => {
   const start = Date.now();
   await loginToInventory(page, "performance_glitch_user");
   await page.getByTestId("add-to-cart-sauce-labs-backpack").click();
@@ -62,12 +62,12 @@ test("checkout completo dentro de 3 s", async ({ page }) => {
   await expect(page.getByTestId("complete-header")).toHaveText("Thank you for your order!");
 
   const elapsed = Date.now() - start;
-  expect(elapsed, `checkout demorou ${elapsed} ms (orçamento: 3000 ms)`).toBeLessThan(3000);
+  expect(elapsed, `checkout took ${elapsed} ms (budget: 3000 ms)`).toBeLessThan(3000);
 });
 
-// DEFEITO DO TESTE (de propósito): o data-test real é "add-to-cart-sauce-labs-backpack".
-// A app está correta; quem está errado é o seletor.
-test("adicionar o backpack ao carrinho", async ({ page }) => {
+// TEST DEFECT (deliberate): the real data-test is "add-to-cart-sauce-labs-backpack".
+// The app is correct; the selector is wrong.
+test("add the backpack to the cart", async ({ page }) => {
   await loginToInventory(page, "standard_user");
   await page.getByTestId("add-to-cart-backpack").click();
   await expect(page.getByTestId("shopping-cart-badge")).toHaveText("1");

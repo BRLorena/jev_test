@@ -1,5 +1,5 @@
-// Acrescenta a análise do Jev aos resultados Allure (allure-results/*-result.json).
-// Formato: https://allurereport.org/docs/how-it-works-test-result-file/
+// Adds Jev's analysis to the Allure results (allure-results/*-result.json).
+// Format: https://allurereport.org/docs/how-it-works-test-result-file/
 import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -19,7 +19,7 @@ interface AllureResult {
 const JEV_LABELS = new Set(["jev_verdict", "jev_confidence", "jev_test_code_defect", "jev_slowness"]);
 const JEV_MARK = "<!-- jev -->";
 
-/** Devolve quantos resultados foram enriquecidos. */
+/** Returns how many results were enriched. */
 export async function enrichAllureResults(
   dir: string,
   items: TriageItem[],
@@ -35,22 +35,22 @@ export async function enrichAllureResults(
     const result = JSON.parse(await readFile(path, "utf8")) as AllureResult;
     if (result.status !== "failed" && result.status !== "broken") continue;
 
-    // O allure-playwright usa fullName = "<ficheiro> › <título>" e parentSuite = projeto,
-    // o que corresponde à chave que o report-parser gera: "<ficheiro> › <título> › <projeto>".
+    // allure-playwright uses fullName = "<file> › <title>" and parentSuite = project,
+    // which matches the key report-parser builds: "<file> › <title> › <project>".
     const project = result.labels?.find((l) => l.name === "parentSuite")?.value;
     const item = byKey.get(`${result.fullName} › ${project}`);
     if (!item) continue;
     const { verdict, suggested, confidence, probabilities, testCodeDefect, slowness, model, state, error } =
       item.result;
 
-    // Labels: usados pelas categorias em allurerc.mjs e visíveis/filtráveis no relatório.
-    // Remover os antigos torna o passo idempotente (pode correr várias vezes).
+    // Labels: used by the categories in allurerc.mjs and visible/filterable in the report.
+    // Removing the old ones makes this step idempotent (it can run several times).
     result.labels = (result.labels ?? []).filter(
       (l) => !JEV_LABELS.has(l.name) && !(l.name === "tag" && l.value.startsWith("jev:")),
     );
     result.labels.push({ name: "jev_verdict", value: verdict }, { name: "tag", value: `jev:${verdict}` });
     if (confidence !== undefined) result.labels.push({ name: "jev_confidence", value: confidence.toFixed(2) });
-    // Respostas das perguntas noul: valor bruto como label, e uma tag quando passam o limiar.
+    // Noul answers: raw value as a label, plus a tag when they cross the threshold.
     if (testCodeDefect !== undefined) {
       result.labels.push({ name: "jev_test_code_defect", value: testCodeDefect.toFixed(2) });
       if (testCodeDefect >= thresholds.testDefectThreshold) result.labels.push({ name: "tag", value: "jev:test-code-defect" });
@@ -60,23 +60,23 @@ export async function enrichAllureResults(
       if (slowness >= thresholds.slownessThreshold) result.labels.push({ name: "tag", value: "jev:slow" });
     }
 
-    // Descrição: resumo legível no topo do teste.
+    // Description: readable summary at the top of the test.
     const pct = (n?: number) => (n === undefined ? "–" : `${Math.round(n * 100)}%`);
     const summary = [
       JEV_MARK,
-      `**Triagem Jev:** \`${verdict}\`` + (suggested ? ` (sugestão: ${suggested}, confiança ${pct(confidence)})` : ""),
+      `**Jev triage:** \`${verdict}\`` + (suggested ? ` (suggested: ${suggested}, confidence ${pct(confidence)})` : ""),
       probabilities
         ? `bug ${pct(probabilities.bug)} · flaky ${pct(probabilities.flaky)} · environment ${pct(probabilities.environment)}` +
-          `\n\nDefeito no código do teste? ${pct(testCodeDefect)} · Lentidão? ${pct(slowness)}`
+          `\n\nTest code defect? ${pct(testCodeDefect)} · Slowness? ${pct(slowness)}`
         : error
-          ? `Erro ao chamar o Jev: ${error}`
-          : "Sem TYPESAFE_API_KEY: não classificado.",
+          ? `Error calling Jev: ${error}`
+          : "No TYPESAFE_API_KEY: not classified.",
       JEV_MARK,
     ].join("\n\n");
     const previous = (result.description ?? "").split(JEV_MARK).filter((_, i) => i % 2 === 0).join("").trim();
     result.description = previous ? `${summary}\n\n${previous}` : summary;
 
-    // Anexo: exatamente o que o Jev recebeu (state) e devolveu. Útil para aprender e depurar.
+    // Attachment: exactly what Jev received (state) and returned. Useful for learning and debugging.
     const source = `${randomUUID()}-attachment.json`;
     await writeFile(
       join(dir, source),

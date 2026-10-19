@@ -1,14 +1,14 @@
-// Configuração do Allure 3. Docs: https://allurereport.org/docs/v3/configure/
+// Allure 3 configuration. Docs: https://allurereport.org/docs/v3/configure/
 //
-// Um único relatório para as duas suites: `npm run allure` junta reports/*/allure-results.
-// Cada suite é um "environment" do Allure 3 (seletor no topo do relatório), identificado
-// pelo label `suite_name` que o allure-playwright acrescenta (playwright.shared.ts).
+// A single report for both suites: `npm run allure` merges reports/*/allure-results.
+// Each suite is an Allure 3 "environment" (selector at the top of the report), identified
+// by the `suite_name` label that allure-playwright adds (playwright.shared.ts).
 import { defineConfig } from "allure";
 
 const SUITES = { local: "App local", saucedemo: "Saucedemo" };
 
-// Uma categoria por veredicto do Jev. A triagem escreve o label `jev_verdict`
-// em cada resultado falhado (triage/allure.ts); o Allure agrupa por esse label.
+// One category per Jev verdict. Triage writes the `jev_verdict` label
+// on every failed result (triage/allure.ts); Allure groups by that label.
 const jevCategory = (name, verdict) => ({
   name,
   id: `jev-${verdict}`,
@@ -20,7 +20,7 @@ const jevCategory = (name, verdict) => ({
 export default defineConfig({
   name: "Playwright + Jev",
   output: "./reports/allure-report",
-  // Histórico do Allure (trends, deteção de flaky). No CI é descarregado do GitHub Pages.
+  // Allure history (trends, flaky detection). In CI it is downloaded from GitHub Pages.
   historyPath: "./.history/allure.jsonl",
   historyLimit: 20,
   environments: Object.fromEntries(
@@ -35,7 +35,7 @@ export default defineConfig({
       jevCategory("🎲 Flaky (Jev)", "flaky"),
       jevCategory("🔌 Environment (Jev)", "environment"),
       jevCategory("👀 Needs review (Jev)", "needs_review"),
-      jevCategory("❔ Unclassified (sem Jev)", "unclassified"),
+      jevCategory("❔ Unclassified (no Jev)", "unclassified"),
     ],
   },
 });

@@ -1,4 +1,4 @@
-// Suite "local": a mini loja em app/, levantada pelo webServer.
+// "local" suite: the mini shop in app/, started by webServer.
 import { defineConfig } from "@playwright/test";
 import { suiteConfig } from "./playwright.shared.ts";
 
@@ -11,7 +11,7 @@ export default defineConfig({
   webServer: {
     command: "npx tsx app/server.ts",
     url: `http://localhost:${PORT}`,
-    // Nunca reutilizar: o servidor tem de arrancar com as variáveis (FAKE_ENV_DOWN, ...) desta execução.
+    // Never reuse: the server must start with this run's variables (FAKE_ENV_DOWN, ...).
     reuseExistingServer: false,
     env: { PORT: String(PORT) },
   },

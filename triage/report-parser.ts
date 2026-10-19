@@ -1,8 +1,8 @@
-// Extrai as falhas do relatório JSON do Playwright (reporter "json").
+// Extracts the failures from the Playwright JSON report ("json" reporter).
 import { readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
-/** Uma tentativa (execução original ou retry) de um teste. */
+/** One attempt (original run or retry) of a test. */
 export interface Attempt {
   retry: number;
   status: string;
@@ -10,7 +10,7 @@ export interface Attempt {
   error?: string;
 }
 
-/** Resultado final de um teste nesta execução (passados incluídos), usado no histórico. */
+/** Final result of a test in this run (passed ones included), used for history. */
 export interface TestRun {
   key: string;
   status: "passed" | "failed" | "flaky" | "skipped";
@@ -18,29 +18,29 @@ export interface TestRun {
   error?: string;
 }
 
-/** Tudo o que sabemos de um teste que falhou pelo menos uma vez. */
+/** Everything we know about a test that failed at least once. */
 export interface FailedTest {
   id: string;
-  /** Identificador estável entre execuções (ficheiro + título), chave do histórico. */
+  /** Stable id across runs (file + title), used as the history key. */
   key: string;
   title: string;
   file: string;
   project: string;
-  /** "unexpected" = falhou sempre; "flaky" = falhou e depois passou num retry. */
+  /** "unexpected" = always failed; "flaky" = failed and then passed on a retry. */
   outcome: "unexpected" | "flaky";
   retries: number;
   attempts: Attempt[];
   errorMessage: string;
   stackExcerpt: string;
-  /** Código do teste (sem comentários), com a linha que falhou marcada com ">>". */
+  /** Test code (without comments), with the failing line marked with ">>". */
   sourceExcerpt: string;
-  /** Árvore de acessibilidade da página no momento da falha (anexo error-context do Playwright). */
+  /** The page's accessibility tree at the time of failure (Playwright's error-context attachment). */
   pageSnapshot?: string;
-  /** `data-test` presentes na página quando falhou (anexo page-test-ids, se a suite o recolher). */
+  /** `data-test` attributes on the page when it failed (page-test-ids attachment, if the suite collects it). */
   pageTestIds?: string[];
 }
 
-// Subconjunto do formato do reporter JSON que usamos.
+// The subset of the JSON reporter format that we use.
 interface JsonError { message?: string; stack?: string; location?: { file: string; line: number } }
 interface JsonAttachment { name: string; contentType?: string; path?: string; body?: string }
 interface JsonResult {
@@ -59,7 +59,7 @@ interface JsonReport { suites: JsonSuite[]; stats?: { startTime?: string }; conf
 const ANSI = /\u001b\[[0-9;]*m/g;
 const clean = (s = "") => s.replace(ANSI, "").trim();
 
-/** Primeiras linhas da mensagem e só as frames "at ..." do nosso código (sem node_modules). */
+/** Only the "at ..." frames from our own code (no node_modules). */
 function summarizeStack(stack: string, maxFrames = 4): string {
   const frames = clean(stack)
     .split("\n")
@@ -69,9 +69,9 @@ function summarizeStack(stack: string, maxFrames = 4): string {
 }
 
 /**
- * Corpo do teste a partir da linha `test(...)`, até ao `});` que o fecha (máx. `maxLines`).
- * Os comentários são removidos de propósito: nos nossos testes dizem "BUG" ou "DEFEITO DO
- * TESTE", e mandá-los ao Jev seria dar-lhe a resposta. O Jev deve julgar só pelo código.
+ * Test body from the `test(...)` line up to the `});` that closes it (at most `maxLines`).
+ * Comments are removed on purpose: in our tests they say "BUG" or "TEST DEFECT", and
+ * sending them to Jev would give it the answer. Jev must judge from the code alone.
  */
 async function testSource(file: string, startLine: number, failLine?: number, maxLines = 40): Promise<string> {
   let lines: string[];
@@ -90,7 +90,7 @@ async function testSource(file: string, startLine: number, failLine?: number, ma
   return out.join("\n");
 }
 
-/** Secção "# Page snapshot" do error-context.md, sem refs, limitada a `max` caracteres. */
+/** The "# Page snapshot" section of error-context.md, without refs, capped at `max` characters. */
 async function pageSnapshot(r: JsonResult, max = 3000): Promise<string | undefined> {
   const path = r.attachments?.find((a) => a.name === "error-context")?.path;
   if (!path) return undefined;
@@ -182,7 +182,7 @@ async function collect(
   for (const child of suite.suites ?? []) await collect(child, path, out, runs, rootDir);
 }
 
-/** `failures`: testes a classificar. `runs`: todos os testes, para o histórico. */
+/** `failures`: tests to classify. `runs`: every test, for the history. */
 export async function readReport(
   reportPath: string,
 ): Promise<{ failures: FailedTest[]; runs: TestRun[]; startTime?: string }> {

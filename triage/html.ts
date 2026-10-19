@@ -1,4 +1,4 @@
-// Gera a página HTML da triagem publicada no GitHub Pages (index.html).
+// Builds the triage HTML page published to GitHub Pages (index.html).
 import type { Verdict } from "./config.ts";
 import type { TriageItem } from "./markdown.ts";
 import { historyStrip } from "./history.ts";
@@ -29,9 +29,9 @@ export function renderHtml(
     failOn: Verdict[];
     blocking: TriageItem[];
     runUrl?: string;
-    /** Links para as outras suites publicadas no Pages. */
+    /** Links to the other suites published on Pages. */
     nav: { label: string; href: string }[];
-    /** O Allure é um só para as duas suites, publicado em /allure/. */
+    /** There is a single Allure report for both suites, published at /allure/. */
     allureHref: string;
   },
 ): string {
@@ -44,7 +44,7 @@ export function renderHtml(
   <td>${result.suggested ?? "–"}</td>
   <td class="num">${pct(result.confidence)}</td>
   ${bar(p?.bug)}${bar(p?.flaky)}${bar(p?.environment)}${bar(result.testCodeDefect)}${bar(result.slowness)}
-  <td title="execuções anteriores, a mais recente à direita">${historyStrip(history)}</td>
+  <td title="previous runs, most recent on the right">${historyStrip(history)}</td>
 </tr>`;
     })
     .join("\n");
@@ -53,23 +53,23 @@ export function renderHtml(
     .map(
       ({ test, result }) => `<details><summary>${esc(test.title)}</summary>
 <pre>${esc(test.errorMessage.split("\n").slice(0, 12).join("\n"))}</pre>
-${result.error ? `<p class="err">Erro ao chamar o Jev: ${esc(result.error)}</p>` : ""}
-${result.model ? `<small>modelo: ${esc(result.model)}</small>` : ""}
+${result.error ? `<p class="err">Error calling Jev: ${esc(result.error)}</p>` : ""}
+${result.model ? `<small>model: ${esc(result.model)}</small>` : ""}
 </details>`,
     )
     .join("\n");
 
   const status =
     opts.blocking.length > 0
-      ? `<p class="status fail">❌ ${opts.blocking.length} falha(s) bloqueiam o job (${opts.failOn.join(", ")}).</p>`
-      : `<p class="status ok">✅ Nenhuma falha bloqueante.</p>`;
+      ? `<p class="status fail">❌ ${opts.blocking.length} failure(s) block the job (${opts.failOn.join(", ")}).</p>`
+      : `<p class="status ok">✅ No blocking failures.</p>`;
 
   return `<!doctype html>
-<html lang="pt">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Triagem Jev · ${esc(opts.suite)}</title>
+<title>Jev Triage · ${esc(opts.suite)}</title>
 <style>
   :root { --bg:#fff; --fg:#1b1f24; --muted:#59636e; --line:#d1d9e0; --card:#f6f8fa; --accent:#0969da;
           --bug:#cf222e; --flaky:#9a6700; --env:#8250df; --review:#0969da; --none:#59636e; }
@@ -104,27 +104,27 @@ ${result.model ? `<small>modelo: ${esc(result.model)}</small>` : ""}
 <nav class="suites">Suites: ${[{ label: opts.suite, href: "" }, ...opts.nav]
     .map((n) => (n.href ? `<a href="${esc(n.href)}">${esc(n.label)}</a>` : `<b>${esc(n.label)}</b>`))
     .join(" · ")}</nav>
-<h1>🧪 Triagem de falhas Playwright (Jev) · ${esc(opts.suite)}</h1>
+<h1>🧪 Playwright failure triage (Jev) · ${esc(opts.suite)}</h1>
 <p>
-  <a href="${esc(opts.allureHref)}">Relatório Allure (todas as suites) →</a>
-  · <a href="playwright-report/index.html">Relatório HTML do Playwright →</a>
-  ${opts.runUrl ? ` · <a href="${esc(opts.runUrl)}">Execução no GitHub Actions</a>` : ""}
-  · <small>gerado em ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC</small>
+  <a href="${esc(opts.allureHref)}">Allure report (all suites) →</a>
+  · <a href="playwright-report/index.html">Playwright HTML report →</a>
+  ${opts.runUrl ? ` · <a href="${esc(opts.runUrl)}">GitHub Actions run</a>` : ""}
+  · <small>generated at ${new Date().toISOString().replace("T", " ").slice(0, 16)} UTC</small>
 </p>
-${opts.usedJev ? "" : `<p class="note">ℹ️ Sem <code>TYPESAFE_API_KEY</code>: modo fallback, todas as falhas ficam <code>unclassified</code>.</p>`}
+${opts.usedJev ? "" : `<p class="note">ℹ️ No <code>TYPESAFE_API_KEY</code>: fallback mode, every failure is <code>unclassified</code>.</p>`}
 ${
   items.length === 0
-    ? "<p>✅ Nenhum teste falhou.</p>"
-    : `<p>${items.length} falha(s) · limiar de confiança <b>${opts.threshold}</b> · o job falha com <code>${opts.failOn.join(", ")}</code></p>
-<p><small><b>Defeito do teste?</b> e <b>Lentidão?</b> são perguntas <code>noul</code>: a probabilidade de "sim". Um <code>bug</code> com defeito do teste alto passa a <code>needs_review</code>.</small></p>
+    ? "<p>✅ No tests failed.</p>"
+    : `<p>${items.length} failure(s) · confidence threshold <b>${opts.threshold}</b> · the job fails on <code>${opts.failOn.join(", ")}</code></p>
+<p><small><b>Test defect?</b> and <b>Slowness?</b> are <code>noul</code> questions: the probability of "yes". A <code>bug</code> with a high test defect score becomes <code>needs_review</code>.</small></p>
 <div class="wrap"><table>
-<thead><tr><th>Veredicto</th><th>Teste</th><th>Sugestão do Jev</th><th class="num">Confiança</th>
-<th class="num">bug</th><th class="num">flaky</th><th class="num">environment</th><th class="num">Defeito do teste?</th><th class="num">Lentidão?</th><th>Histórico</th></tr></thead>
+<thead><tr><th>Verdict</th><th>Test</th><th>Jev suggestion</th><th class="num">Confidence</th>
+<th class="num">bug</th><th class="num">flaky</th><th class="num">environment</th><th class="num">Test defect?</th><th class="num">Slowness?</th><th>History</th></tr></thead>
 <tbody>
 ${rows}
 </tbody></table></div>
 ${status}
-<h2>Detalhes dos erros</h2>
+<h2>Error details</h2>
 ${details}`
 }
 </main>

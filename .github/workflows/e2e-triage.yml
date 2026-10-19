@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 
-# Só um deploy do GitHub Pages de cada vez; um novo push não cancela o que está a publicar.
+# Only one GitHub Pages deploy at a time; a new push doesn't cancel one that is publishing.
 concurrency:
   group: pages-${{ github.ref }}
   cancel-in-progress: false
@@ -18,26 +18,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
-      # Uma suite a falhar não cancela a outra.
+      # A failing suite doesn't cancel the other.
       fail-fast: false
       matrix:
         include:
-          # local: a mini loja em app/. Publicada na raiz do Pages.
+          # local: the mini shop in app/. Published at the Pages root.
           - suite: local
             test_script: test
             site_path: ""
-          # saucedemo: https://www.saucedemo.com. Publicada em /saucedemo/.
+          # saucedemo: https://www.saucedemo.com. Published at /saucedemo/.
           - suite: saucedemo
             test_script: test:saucedemo
             site_path: saucedemo
     env:
       CI: "true"
       SUITE: ${{ matrix.suite }}
-      # Falhas de propósito: app local (503 e atraso aleatório) e saucedemo (rede cortada num teste).
+      # Deliberate failures: local app (503 and random delay) and saucedemo (network cut off in one test).
       FAKE_ENV_DOWN: "1"
       FLAKY_MAX_DELAY_MS: "2000"
       SAUCE_ENV_DOWN: "1"
-      # Regras da triagem: configuráveis em Settings → Secrets and variables → Actions → Variables.
+      # Triage rules: configurable in Settings → Secrets and variables → Actions → Variables.
       TRIAGE_FAIL_ON: ${{ vars.TRIAGE_FAIL_ON || 'bug' }}
       TRIAGE_CONFIDENCE_THRESHOLD: ${{ vars.TRIAGE_CONFIDENCE_THRESHOLD || '0.6' }}
       TRIAGE_TEST_DEFECT_THRESHOLD: ${{ vars.TRIAGE_TEST_DEFECT_THRESHOLD || '0.7' }}
@@ -56,13 +56,13 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      # continue-on-error: quem decide se o job falha é a triagem, não o número de testes vermelhos.
+      # continue-on-error: triage decides whether the job fails, not the number of red tests.
       - name: Run Playwright tests
         continue-on-error: true
         run: npm run ${{ matrix.test_script }}
 
-      # Histórico da triagem (execuções anteriores), publicado no GitHub Pages pelo deploy anterior.
-      # Na primeira execução (ou sem Pages) não existem, e tudo corre sem histórico.
+      # Triage history (previous runs), published to GitHub Pages by the previous deploy.
+      # On the first run (or without Pages) it doesn't exist, and everything runs without history.
       - name: Download history from GitHub Pages
         if: always()
         env:
@@ -70,9 +70,9 @@ jobs:
         run: |
           mkdir -p ".history/$SUITE"
           base="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/${SITE_PATH:+$SITE_PATH/}"
-          curl -fsSL "${base}history.json" -o ".history/$SUITE/triage.json" && echo "Histórico da triagem descarregado" || echo "Sem histórico da triagem"
+          curl -fsSL "${base}history.json" -o ".history/$SUITE/triage.json" && echo "Triage history downloaded" || echo "No triage history"
 
-      # ★ Aqui entra o Jev. Sem o secret, corre em fallback (unclassified) e não falha.
+      # ★ This is where Jev comes in. Without the secret, it runs in fallback mode (unclassified) and doesn't fail.
       - name: Triage failures with Jev
         if: always()
         env:
@@ -90,7 +90,7 @@ jobs:
             reports/${{ matrix.suite }}/results.json
           retention-days: 14
 
-      # Resultados Allure já enriquecidos pelo Jev: o job "allure" junta as duas suites num relatório.
+      # Allure results already enriched by Jev: the "allure" job merges both suites into one report.
       - name: Upload Allure results
         if: always()
         uses: actions/upload-artifact@v7
@@ -99,7 +99,7 @@ jobs:
           path: reports/${{ matrix.suite }}/allure-results/
           retention-days: 1
 
-      # Parte desta suite no site do GitHub Pages (só em push para master; PRs não publicam).
+      # This suite's part of the GitHub Pages site (only on push to master; PRs don't publish).
       - name: Build Pages site
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
         env:
@@ -119,7 +119,7 @@ jobs:
           path: site/
           retention-days: 1
 
-  # Um único relatório Allure 3 com as duas suites (cada uma é um "environment" do Allure).
+  # A single Allure 3 report with both suites (each one is an Allure "environment").
   allure:
     needs: e2e
     if: always() && needs.e2e.result != 'cancelled'
@@ -135,7 +135,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Cada artifact fica em reports/<suite>/allure-results, onde o `npm run allure` os procura.
+      # Each artifact goes to reports/<suite>/allure-results, where `npm run allure` looks for it.
       - name: Download Allure results
         uses: actions/download-artifact@v8
         with:
@@ -155,7 +155,7 @@ jobs:
         run: |
           mkdir -p .history
           url="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/allure-history.jsonl"
-          curl -fsSL "$url" -o .history/allure.jsonl && echo "Histórico do Allure descarregado" || echo "Sem histórico do Allure"
+          curl -fsSL "$url" -o .history/allure.jsonl && echo "Allure history downloaded" || echo "No Allure history"
 
       - name: Generate Allure 3 report
         run: npm run allure
@@ -182,8 +182,8 @@ jobs:
           path: site/
           retention-days: 1
 
-  # Junta as partes das duas suites e publica. Corre mesmo quando o e2e falha por causa de
-  # um bug: é precisamente aí que interessa ver os relatórios.
+  # Merges both suites' parts and publishes. Runs even when e2e fails because of a bug:
+  # that is exactly when the reports matter most.
   deploy-pages:
     needs: [e2e, allure]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.e2e.result != 'cancelled'
